@@ -42,6 +42,10 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         {
             Object.DestroyImmediate(_material);
             Object.DestroyImmediate(_camera.gameObject);
+            if (_useComputeShader)
+            {
+                _diffCompute.Terminate();
+            }
         }
 
         public void Render(AnimationClip clip, Texture2D element)

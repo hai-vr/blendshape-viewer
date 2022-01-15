@@ -17,29 +17,35 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
     public class BlendshapeViewerDiffCompute
     {
         private readonly ComputeShader _computeShader;
+        private readonly ComputeBuffer _buf;
+        private readonly int _kernel;
 
         public BlendshapeViewerDiffCompute()
         {
             _computeShader = FindComputeShader();
+            _kernel = _computeShader.FindKernel("DiffCompute");
+            _buf = new ComputeBuffer(4, sizeof(int));
+            _computeShader.SetBuffer(_kernel, "ResultBuffer", _buf);
         }
 
         public Vector4 Compute(Texture2D textureA, Texture2D textureB)
         {
             var results = new int[4];
-            var buf = new ComputeBuffer(4, sizeof(int));
-            buf.SetData(results);
+            _buf.SetData(results);
             var computeShader = _computeShader;
 
-            var csMain = computeShader.FindKernel("DiffCompute");
+            computeShader.SetTexture(_kernel, "InputA", textureA);
+            computeShader.SetTexture(_kernel, "InputB", textureB);
 
-            computeShader.SetTexture(csMain, "InputA", textureA);
-            computeShader.SetTexture(csMain, "InputB", textureB);
-            computeShader.SetBuffer(csMain, "ResultBuffer", buf);
+            computeShader.Dispatch(_kernel, textureA.width / 8, textureB.height / 8, 1);
 
-            computeShader.Dispatch(csMain, textureA.width / 8, textureB.height / 8, 1);
-
-            buf.GetData(results);
+            _buf.GetData(results);
             return new Vector4(results[0], results[1], results[2], results[3]);
+        }
+
+        public void Terminate()
+        {
+            _buf.Release();
         }
 
         private static ComputeShader FindComputeShader()
