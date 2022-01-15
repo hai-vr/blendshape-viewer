@@ -13,6 +13,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         public bool autoUpdateOnFocus = true;
         public int thumbnailSize = 100;
         public bool showHotspots;
+        public bool useComputeShader = true;
         public Texture2D[] tex2ds = new Texture2D[0];
         private Vector2 _scrollPos;
         private SkinnedMeshRenderer _generatedFor;
@@ -52,7 +53,13 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(showHotspots)));
             }
             EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(autoUpdateOnFocus)));
+            if (SystemInfo.supportsComputeShaders)
+            {
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(useComputeShader)));
+            }
+            EditorGUILayout.EndHorizontal();
             EditorGUILayout.IntSlider(serializedObject.FindProperty(nameof(thumbnailSize)), 100, 300);
 
             EditorGUI.BeginDisabledGroup(skinnedMesh == null || AnimationMode.InAnimationMode());
@@ -156,7 +163,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var module = new BlendshapeViewerGenerator();
             try
             {
-                module.Begin(skinnedMesh, showHotspots ? 0.95f : 0);
+                module.Begin(skinnedMesh, showHotspots ? 0.95f : 0, useComputeShader);
                 Texture2D neutralTexture = null;
                 if (showDifferences)
                 {

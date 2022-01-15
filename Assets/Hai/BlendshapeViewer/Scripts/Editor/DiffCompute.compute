@@ -1,0 +1,40 @@
+﻿/*
+Copyright 2022 Pema Malling
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+#pragma kernel DiffCompute
+
+Texture2D<float4> InputA;
+Texture2D<float4> InputB;
+RWStructuredBuffer<int> ResultBuffer; // [minX, minY, maxX, maxY]
+
+[numthreads(8,8,1)]
+void DiffCompute (uint3 id : SV_DispatchThreadID)
+{
+    float3 diff = InputA[id.xy].xyz - InputB[id.xy].xyz;
+    if (dot(diff, diff) > 0.01)
+    {
+        // handle first occurrence, this branch needs to be here because stupid compiler
+        if (ResultBuffer[0] == 0)
+        {
+            InterlockedCompareStore(ResultBuffer[0], 0, id.x);
+            InterlockedCompareStore(ResultBuffer[1], 0, id.y);
+            InterlockedCompareStore(ResultBuffer[2], 0, id.x);
+            InterlockedCompareStore(ResultBuffer[3], 0, id.y);
+        }
+
+        // calc AABB points
+        {
+            InterlockedMin(ResultBuffer[0], id.x);
+            InterlockedMin(ResultBuffer[1], id.y);
+            InterlockedMax(ResultBuffer[2], id.x);
+            InterlockedMax(ResultBuffer[3], id.y);
+        }
+    }
+}

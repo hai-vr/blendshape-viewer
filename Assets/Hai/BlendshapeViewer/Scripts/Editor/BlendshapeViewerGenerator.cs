@@ -7,14 +7,18 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
     {
         private Material _material;
         private SkinnedMeshRenderer _skinnedMesh;
+        private bool _useComputeShader;
         private Camera _camera;
         private float _overlay;
+        private BlendshapeViewerDiffCompute _diffCompute;
 
-        public void Begin(SkinnedMeshRenderer skinnedMesh, float overlay)
+        public void Begin(SkinnedMeshRenderer skinnedMesh, float overlay, bool useComputeShader)
         {
             _skinnedMesh = skinnedMesh;
             _overlay = overlay;
-            _material = new Material(Shader.Find("Hai/BlendshapeViewer"));
+            _useComputeShader = SystemInfo.supportsComputeShaders && useComputeShader;
+
+            _material = new Material(_useComputeShader ? Shader.Find("Hai/BlendshapeViewerRectOnly") : Shader.Find("Hai/BlendshapeViewer"));
             _material.SetFloat("_Hotspots", _overlay);
             _camera = new GameObject().AddComponent<Camera>();
 
@@ -27,6 +31,11 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             _camera.nearClipPlane = sceneCamera.nearClipPlane;
             _camera.farClipPlane = sceneCamera.farClipPlane;
             _camera.orthographicSize = sceneCamera.orthographicSize;
+
+            if (_useComputeShader)
+            {
+                _diffCompute = new BlendshapeViewerDiffCompute();
+            }
         }
 
         public void Terminate()
@@ -86,6 +95,10 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         {
             var diff = RenderTexture.GetTemporary(newTexture.width, newTexture.height, 24);
             _material.SetTexture("_NeutralTex", neutralTexture);
+            if (_useComputeShader)
+            {
+                _material.SetVector("_Rect", _diffCompute.Compute(source, neutralTexture));
+            }
             Graphics.Blit(source, diff, _material);
             RenderTextureTo(diff, newTexture);
             RenderTexture.ReleaseTemporary(diff);
