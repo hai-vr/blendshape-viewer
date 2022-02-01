@@ -275,8 +275,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         [MenuItem("Window/Haï/BlendshapeViewer")]
         public static void ShowWindow()
         {
-            var window = GetWindow<EditorWindow>();
-            window.titleContent = new GUIContent("ComboGestureDynamics");
+            Obtain().Show();
         }
 
         [MenuItem("CONTEXT/SkinnedMeshRenderer/Haï BlendshapeViewer")]
@@ -291,6 +290,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private static BlendshapeViewerEditorWindow Obtain()
         {
             var editor = GetWindow<BlendshapeViewerEditorWindow>(false, null, false);
+            editor.titleContent = new GUIContent("BlendshapeViewer");
             return editor;
         }
     }
