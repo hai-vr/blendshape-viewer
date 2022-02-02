@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -16,6 +17,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
         public bool advanced;
         public float normalizedTime;
         public HumanBodyBones focusedBone = HumanBodyBones.Head;
+        public AnimationClip basePose;
         private Vector2 _scrollPos;
         // private Animator _generatedFor;
         private int _generatedSize;
@@ -88,6 +90,14 @@ namespace Hai.AnimationViewer.Scripts.Editor
             {
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(focusedBone)));
                 EditorGUILayout.Slider(serializedObject.FindProperty(nameof(normalizedTime)), 0f, 1f);
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(basePose)));
+            }
+            else
+            {
+                if (basePose != null)
+                {
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(basePose)));
+                }
             }
             if (focusedBone != HumanBodyBones.Head)
             {
@@ -104,6 +114,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
                 _projectRenderQueue.QueueSize(updateSpeed);
                 _projectRenderQueue.Bone(focusedBone);
                 _projectRenderQueue.NormalizedTime(normalizedTime);
+                _projectRenderQueue.BasePose(basePose);
             }
         }
 
@@ -243,6 +254,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
         private int _queueSize;
         private HumanBodyBones _bone = HumanBodyBones.Head;
         private float _normalizedTime;
+        private AnimationClip _basePose;
 
         public AnimationViewerRenderQueue()
         {
@@ -328,7 +340,22 @@ namespace Hai.AnimationViewer.Scripts.Editor
                 while (_queue.Count > 0 && itemCount < _queueSize)
                 {
                     var clip = _queue.Dequeue();
-                    viewer.Render(clip, _clipToTexture[clip], _normalizedTime);
+                    if (_basePose != null)
+                    {
+                        var modifiedClip = Object.Instantiate(clip);
+                        var missingBindings = AnimationUtility.GetCurveBindings(_basePose)
+                            .Where(binding => AnimationUtility.GetEditorCurve(clip, binding) == null)
+                            .ToArray();
+                        foreach (var missingBinding in missingBindings)
+                        {
+                            AnimationUtility.SetEditorCurve(modifiedClip, missingBinding, AnimationUtility.GetEditorCurve(_basePose, missingBinding));
+                        }
+                        viewer.Render(modifiedClip, _clipToTexture[clip], _normalizedTime);
+                    }
+                    else
+                    {
+                        viewer.Render(clip, _clipToTexture[clip], _normalizedTime);
+                    }
 
                     // This is a workaround for an issue where the muscles will not update
                     // across multiple samplings of the animator on the same frame.
@@ -360,6 +387,11 @@ namespace Hai.AnimationViewer.Scripts.Editor
         public void NormalizedTime(float normalizedTime)
         {
             _normalizedTime = normalizedTime;
+        }
+
+        public void BasePose(AnimationClip basePose)
+        {
+            _basePose = basePose;
         }
     }
 }
