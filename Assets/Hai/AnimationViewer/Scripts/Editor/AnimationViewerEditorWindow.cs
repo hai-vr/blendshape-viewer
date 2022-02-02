@@ -223,8 +223,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
             var assetPath = AssetDatabase.GUIDToAssetPath(guid);
             if (!assetPath.EndsWith(".anim")) return;
 
-            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(assetPath);
-            var texture = _projectRenderQueue.RequireRender(clip);
+            var texture = _projectRenderQueue.RequireRender(assetPath);
 
             GUI.Box(selectionRect, texture);
 
@@ -261,9 +260,9 @@ namespace Hai.AnimationViewer.Scripts.Editor
     // Afterwards, I've settled with using the "projectWindowItemOnGUI" callback, as seen above.
     public class AnimationViewerRenderQueue
     {
-        private readonly Dictionary<AnimationClip, Texture2D> _clipToTexture;
-        private readonly List<AnimationClip> _invalidation;
-        private Queue<AnimationClip> _queue;
+        private readonly Dictionary<string, Texture2D> _pathToTexture;
+        private readonly List<string> _invalidation;
+        private Queue<string> _queue;
         private int _queueSize;
         private HumanBodyBones _bone = HumanBodyBones.Head;
         private float _normalizedTime;
@@ -271,40 +270,40 @@ namespace Hai.AnimationViewer.Scripts.Editor
 
         public AnimationViewerRenderQueue()
         {
-            _clipToTexture = new Dictionary<AnimationClip, Texture2D>();
-            _invalidation = new List<AnimationClip>();
-            _queue = new Queue<AnimationClip>();
+            _pathToTexture = new Dictionary<string, Texture2D>();
+            _invalidation = new List<string>();
+            _queue = new Queue<string>();
         }
 
         public void ForceClearAll()
         {
-            _clipToTexture.Clear();
+            _pathToTexture.Clear();
             _queue.Clear();
             _invalidation.Clear();
         }
 
         public void ForceInvalidate()
         {
-            _invalidation.AddRange(_clipToTexture.Keys);
+            _invalidation.AddRange(_pathToTexture.Keys);
         }
 
-        public Texture2D RequireRender(AnimationClip clip)
+        public Texture2D RequireRender(string assetPath)
         {
-            if (_clipToTexture.ContainsKey(clip)
-                && _clipToTexture[clip] != null) // Can happen when the texture is destroyed (Unity invalid object)
+            if (_pathToTexture.ContainsKey(assetPath)
+                && _pathToTexture[assetPath] != null) // Can happen when the texture is destroyed (Unity invalid object)
             {
-                if (!_queue.Contains(clip) && _invalidation.Contains(clip))
+                if (!_queue.Contains(assetPath) && _invalidation.Contains(assetPath))
                 {
-                    _invalidation.RemoveAll(inList => inList == clip);
-                    _queue.Enqueue(clip);
+                    _invalidation.RemoveAll(inList => inList == assetPath);
+                    _queue.Enqueue(assetPath);
                 }
-                return _clipToTexture[clip];
+                return _pathToTexture[assetPath];
             }
 
             var texture = new Texture2D(100, 100, TextureFormat.RGB24, false);
-            _clipToTexture[clip] = texture; // TODO: Dimensions
+            _pathToTexture[assetPath] = texture; // TODO: Dimensions
 
-            _queue.Enqueue(clip);
+            _queue.Enqueue(assetPath);
 
             return texture;
         }
@@ -352,7 +351,9 @@ namespace Hai.AnimationViewer.Scripts.Editor
                 var itemCount = 0;
                 while (_queue.Count > 0 && itemCount < _queueSize)
                 {
-                    var clip = _queue.Dequeue();
+                    var path = _queue.Dequeue();
+                    var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+                    if (clip == null) clip = new AnimationClip(); // Defensive: Might happen if the clip gets deleted during an update
                     if (_basePose != null)
                     {
                         var modifiedClip = Object.Instantiate(clip);
@@ -363,11 +364,11 @@ namespace Hai.AnimationViewer.Scripts.Editor
                         {
                             AnimationUtility.SetEditorCurve(modifiedClip, missingBinding, AnimationUtility.GetEditorCurve(_basePose, missingBinding));
                         }
-                        viewer.Render(modifiedClip, _clipToTexture[clip], _normalizedTime);
+                        viewer.Render(modifiedClip, _pathToTexture[path], _normalizedTime);
                     }
                     else
                     {
-                        viewer.Render(clip, _clipToTexture[clip], _normalizedTime);
+                        viewer.Render(clip, _pathToTexture[path], _normalizedTime);
                     }
 
                     // This is a workaround for an issue where the muscles will not update
