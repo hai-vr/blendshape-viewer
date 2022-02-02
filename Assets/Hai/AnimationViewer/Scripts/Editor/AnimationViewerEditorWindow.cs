@@ -58,6 +58,10 @@ namespace Hai.AnimationViewer.Scripts.Editor
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(autoUpdateOnFocus)));
             EditorGUI.BeginDisabledGroup(!autoUpdateOnFocus);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(continuousUpdates)));
+            if (autoUpdateOnFocus && continuousUpdates)
+            {
+                EditorGUILayout.HelpBox("Continuous Updates will cause a dramatic slow down.\nDisable it when not in use.", MessageType.Warning);
+            }
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.IntSlider(serializedObject.FindProperty(nameof(updateSpeed)), 1, 100);
 
@@ -97,6 +101,15 @@ namespace Hai.AnimationViewer.Scripts.Editor
                 if (basePose != null)
                 {
                     EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(basePose)));
+                }
+            }
+
+            if (basePose != null)
+            {
+                EditorGUILayout.HelpBox("A base pose is specified. This will change the way animations look.", MessageType.Warning);
+                if (GUILayout.Button("Discard base pose"))
+                {
+                    serializedObject.FindProperty(nameof(basePose)).objectReferenceValue = null;
                 }
             }
             if (focusedBone != HumanBodyBones.Head)
