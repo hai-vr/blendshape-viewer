@@ -31,6 +31,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
         public AnimationViewerEditorWindow()
         {
             titleContent = new GUIContent("AnimationViewer");
+            EditorApplication.projectWindowItemOnGUI -= DrawAnimationClipItem; // Clear any previously added
             EditorApplication.projectWindowItemOnGUI += DrawAnimationClipItem;
         }
 
@@ -313,8 +314,15 @@ namespace Hai.AnimationViewer.Scripts.Editor
             {
                 viewer.Begin(copy);
                 var animator = copy.GetComponent<Animator>();
-                var head = animator.GetBoneTransform(_bone);
-                viewer.ParentCameraTo(head);
+                if (animator.isHuman && _bone != HumanBodyBones.LastBone)
+                {
+                    var head = animator.GetBoneTransform(_bone);
+                    viewer.ParentCameraTo(head);
+                }
+                else
+                {
+                    viewer.ParentCameraTo(animator.transform);
+                }
 
                 var itemCount = 0;
                 while (_queue.Count > 0 && itemCount < _queueSize)

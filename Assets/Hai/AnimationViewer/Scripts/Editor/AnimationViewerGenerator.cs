@@ -37,12 +37,18 @@ namespace Hai.AnimationViewer.Scripts.Editor
 
         public void Render(AnimationClip clip, Texture2D element, float normalizedTime)
         {
+            var initPos = _animatedRoot.transform.position;
+            var initRot = _animatedRoot.transform.rotation;
             try
             {
                 AnimationMode.StartAnimationMode();
                 AnimationMode.BeginSampling();
                 AnimationMode.SampleAnimationClip(_animatedRoot.gameObject, clip, normalizedTime * clip.length);
                 AnimationMode.EndSampling();
+                // This is a workaround for an issue where for some reason, the animator moves to the origin
+                // after sampling despite the animation having no RootT/RootQ properties.
+                _animatedRoot.transform.position = initPos;
+                _animatedRoot.transform.rotation = initRot;
 
                 var renderTexture = RenderTexture.GetTemporary(element.width, element.height, 24);
                 renderTexture.wrapMode = TextureWrapMode.Clamp;
@@ -54,6 +60,8 @@ namespace Hai.AnimationViewer.Scripts.Editor
             finally
             {
                 AnimationMode.StopAnimationMode();
+                _animatedRoot.transform.position = initPos;
+                _animatedRoot.transform.rotation = initRot;
             }
         }
 
