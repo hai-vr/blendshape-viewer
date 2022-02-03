@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -18,6 +19,8 @@ namespace Hai.AnimationViewer.Scripts.Editor
         public float normalizedTime;
         public HumanBodyBones focusedBone = HumanBodyBones.Head;
         public AnimationClip basePose;
+        public int thumbnailSize = 96;
+        public bool updateOnActivate = true;
         private Vector2 _scrollPos;
         // private Animator _generatedFor;
         private int _generatedSize;
@@ -35,6 +38,21 @@ namespace Hai.AnimationViewer.Scripts.Editor
             titleContent = new GUIContent("AnimationViewer");
             EditorApplication.projectWindowItemOnGUI -= DrawAnimationClipItem; // Clear any previously added
             EditorApplication.projectWindowItemOnGUI += DrawAnimationClipItem;
+
+            try
+            {
+                _projectBrowserType = typeof(EditorWindow).Assembly.GetType("UnityEditor.ProjectBrowser");
+                _projectBrowserListAreaField = _projectBrowserType.GetField("m_ListArea", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                var listAreaType = typeof(EditorWindow).Assembly.GetType("UnityEditor.ObjectListArea");
+                _listAreaGridSizeField = listAreaType.GetProperty("gridSize", BindingFlags.Public | BindingFlags.Instance);
+
+                _thumbnailSizeFeatureAvailable = true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         private void Update()
@@ -53,6 +71,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
 
         private void OnGUI()
         {
+            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(Screen.height - EditorGUIUtility.singleLineHeight));
             var serializedObject = new SerializedObject(this);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(animator)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(autoUpdateOnFocus)));
@@ -64,12 +83,31 @@ namespace Hai.AnimationViewer.Scripts.Editor
             }
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.IntSlider(serializedObject.FindProperty(nameof(updateSpeed)), 1, 100);
+            if (_thumbnailSizeFeatureAvailable)
+            {
+                var thumbnailSizeSerialized = serializedObject.FindProperty(nameof(thumbnailSize));
+                var previousSize = thumbnailSizeSerialized.intValue;
+                EditorGUILayout.IntSlider(thumbnailSizeSerialized, 20, 300);
+                if (_enabled)
+                {
+                    var editorWindow = GetWindow(_projectBrowserType, false, null, false);
+                    var listArea = _projectBrowserListAreaField.GetValue(editorWindow);
+                    _listAreaGridSizeField.SetValue(listArea, thumbnailSize);
+                    if (previousSize != thumbnailSizeSerialized.intValue)
+                    {
+                        EditorApplication.RepaintProjectWindow();
+                    }
+                }
+            }
 
             EditorGUI.BeginDisabledGroup(animator == null || AnimationMode.InAnimationMode());
             if (ColoredBgButton(_enabled, Color.red, () => GUILayout.Button("Activate Viewer")))
             {
                 _enabled = !_enabled;
-                Invalidate();
+                if (_enabled && updateOnActivate)
+                {
+                    Invalidate();
+                }
                 EditorApplication.RepaintProjectWindow();
             }
             if (_enabled)
@@ -95,6 +133,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(focusedBone)));
                 EditorGUILayout.Slider(serializedObject.FindProperty(nameof(normalizedTime)), 0f, 1f);
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(basePose)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(updateOnActivate)));
             }
             else
             {
@@ -129,6 +168,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
                 _projectRenderQueue.NormalizedTime(normalizedTime);
                 _projectRenderQueue.BasePose(basePose);
             }
+            EditorGUILayout.EndScrollView();
         }
 
         private void SaveGenerationParams()
@@ -210,6 +250,10 @@ namespace Hai.AnimationViewer.Scripts.Editor
         private static GameObject _focusedObjectNullable;
         private static bool _enabled;
         private float _generatedNormalizedTime;
+        private readonly bool _thumbnailSizeFeatureAvailable;
+        private readonly FieldInfo _projectBrowserListAreaField;
+        private readonly PropertyInfo _listAreaGridSizeField;
+        private readonly Type _projectBrowserType;
 
         static AnimationViewerEditorWindow()
         {
@@ -300,7 +344,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
                 return _pathToTexture[assetPath];
             }
 
-            var texture = new Texture2D(100, 100, TextureFormat.RGB24, false);
+            var texture = new Texture2D(300, 300, TextureFormat.RGB24, true);
             _pathToTexture[assetPath] = texture; // TODO: Dimensions
 
             _queue.Enqueue(assetPath);
