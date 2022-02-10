@@ -213,6 +213,11 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
                         var result = NewTexture();
                         module.Render(clip, result);
+                        if (i == 0)
+                        {
+                            // Workaround a weird bug where the first blendshape is always incorrectly rendered
+                            module.Render(clip, result);
+                        }
                         if (showDifferences)
                         {
                             if (isAlreadyAnimatedTo100)
