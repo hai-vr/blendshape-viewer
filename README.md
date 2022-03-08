@@ -1,4 +1,4 @@
-This repository contains two projects: 🟡 Blendshape Viewer, and 🔵 Animation Viewer.
+This repository contains three projects: 🟡 Blendshape Viewer, 🔵 Animation Viewer, and ⚪ Visual Expressions Editor.
 
 # 🟡 Blendshape Viewer
 
@@ -14,8 +14,16 @@ https://user-images.githubusercontent.com/60819407/149598206-be8e4d7d-623c-4dea-
 
 ### [> Download latest version of 🔵 Animation Viewer...](https://github.com/hai-vr/blendshape-viewer/releases?q=AnimationViewer)
 
-Animation Viewer lets you preview animations in the Project view browser.
+*Animation Viewer* lets you preview animations in the Project view browser.
 
 [Animation Viewer Documentation / 説明書 / 설명서](https://hai-vr.notion.site/Animation-Viewer-2a4bc319631c44d383174bd140722e38)
 
 https://user-images.githubusercontent.com/60819407/152086223-b1eff9ca-d46f-4a2f-adc7-58263f45bc25.mp4
+
+# ⚪ Visual Expressions Editor
+
+### [> Download latest version of ⚪ Visual Expressions Editor...](https://github.com/hai-vr/blendshape-viewer/releases?q=VisualExpressionsEditor)
+
+*Visual Expressions Editor* lets you edit face expression animations.
+
+[Visual Expressions Editor Documentation / 説明書 / 설명서](https://hai-vr.notion.site/Visual-Expressions-Editor-262f0ba4cfe24ba38278d99939a2a018)
