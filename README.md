@@ -27,3 +27,5 @@ https://user-images.githubusercontent.com/60819407/152086223-b1eff9ca-d46f-4a2f-
 *Visual Expressions Editor* lets you edit face expression animations.
 
 [Visual Expressions Editor Documentation / 説明書 / 설명서](https://hai-vr.notion.site/Visual-Expressions-Editor-262f0ba4cfe24ba38278d99939a2a018)
+
+https://user-images.githubusercontent.com/60819407/157273809-6418d258-bb78-4add-9ce8-ac9659937d91.mp4
