@@ -322,7 +322,12 @@ namespace Hai.VisualExpressionsEditor.Scripts
 
                     // var weight = serializedSkinnedMesh.FindProperty("m_BlendShapeWeights").GetArrayElementAtIndex(index);
                     // var isNonZero = weight.floatValue > 0f;
-                    if (existsInAnimation && existsAllSameValue && (existsFirstValue != 0f || _manuallyActedChanges.Contains(binding)))
+                    if (existsInAnimation
+                        && existsAllSameValue
+                        && (existsFirstValue != 0f || _manuallyActedChanges.Contains(binding))
+                        // Some animations have constants outside threshold, and these will get silently edited to 100 if the editor is allowed
+                        && existsFirstValue >= 0f && existsFirstValue <= 100f
+                        )
                     {
                         var newValue = EditorGUILayout.Slider(GUIContent.none, existsFirstValue, 0f, 100f, GUILayout.Width(width));
                         if (newValue != existsFirstValue)
@@ -330,6 +335,10 @@ namespace Hai.VisualExpressionsEditor.Scripts
                             _manuallyActedChanges.Add(binding);
                             ModifyAnimatable(binding, newValue);
                         }
+                    }
+                    else if (existsInAnimation && existsAllSameValue && (existsFirstValue < 0f || existsFirstValue > 100f))
+                    {
+                        EditorGUILayout.LabelField(string.Format(CultureInfo.InvariantCulture, "[{0:0.##}]", existsFirstValue), GUILayout.Width(width));
                     }
                     else if (existsInAnimation && !existsAllSameValue)
                     {
