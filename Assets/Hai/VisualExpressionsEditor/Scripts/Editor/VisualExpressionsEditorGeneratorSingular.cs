@@ -1,7 +1,7 @@
 ﻿using UnityEditor;
 using UnityEngine;
 
-namespace Hai.VisualExpressionsEditor.Scripts
+namespace Hai.VisualExpressionsEditor.Scripts.Editor
 {
     public class VisualExpressionsEditorGeneratorSingular
     {

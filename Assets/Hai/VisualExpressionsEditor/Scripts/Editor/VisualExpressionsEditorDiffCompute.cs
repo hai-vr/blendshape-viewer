@@ -12,7 +12,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace Hai.VisualExpressionsEditor.Scripts
+namespace Hai.VisualExpressionsEditor.Scripts.Editor
 {
     public class VisualExpressionsEditorDiffCompute
     {
