@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -19,6 +20,7 @@ namespace Hai.VisualExpressionsEditor.Scripts
         public bool showHotspots;
         public bool useComputeShader = true;
         public Texture2D[][] smrToTex2ds = new Texture2D[0][];
+        public bool animationLoopEdit = false;
         private Vector2 _scrollPos;
         private Animator _generatedFor;
         private int _generatedSize;
@@ -45,9 +47,41 @@ namespace Hai.VisualExpressionsEditor.Scripts
         private Rect m_ActiveRect;
         private Vector2 _scrollPosActive;
 
+        private readonly Type _animationWindowType;
+        private readonly FieldInfo _animationWindowAnimEditorField;
+        private readonly FieldInfo _animEditorStateField;
+        private readonly PropertyInfo _animationWindowStateCurrentFrameProperty;
+        private readonly bool _loopEditFeatureAvailable;
+        private int _lastCurrentFrame;
+        private bool _isQuickFrame;
+        private int _lastQuickFrame;
+        private bool _isQuickPlaying;
+        private float _isQuickPlayingTime;
+        private int _isQuickPlayingFrame;
+        private float _playSpeed = 1f;
+        private bool _quickAnyways;
+
         public VisualExpressionsEditorWindow()
         {
             titleContent = new GUIContent("VisualExpressionsEditor");
+
+            try
+            {
+                _animationWindowType = typeof(EditorWindow).Assembly.GetType("UnityEditor.AnimationWindow");
+                _animationWindowAnimEditorField = _animationWindowType.GetField("m_AnimEditor", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                var animEditorType = typeof(EditorWindow).Assembly.GetType("UnityEditor.AnimEditor");
+                _animEditorStateField = animEditorType.GetField("m_State", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                var animationWindowStateType = typeof(EditorWindow).Assembly.GetType("UnityEditorInternal.AnimationWindowState");
+                _animationWindowStateCurrentFrameProperty = animationWindowStateType.GetProperty("currentFrame", BindingFlags.Public | BindingFlags.Instance);
+
+                _loopEditFeatureAvailable = true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         private void OnFocus()
@@ -69,13 +103,32 @@ namespace Hai.VisualExpressionsEditor.Scripts
             if (clip == active) return;
 
             clip = (AnimationClip) active;
+            if (!_isQuickPlaying)
+            {
+                _isQuickFrame = false;
+                _isQuickPlaying = false;
+            }
             _manuallyActedChanges = new HashSet<EditorCurveBinding>();
             TryExecuteClipChangeUpdate();
+        }
+
+        private void Update()
+        {
+            if (animationLoopEdit && _loopEditFeatureAvailable && _isQuickFrame && _isQuickPlaying && clip != null)
+            {
+                _lastQuickFrame = (int) Mathf.Repeat(_isQuickPlayingFrame + (Time.time - _isQuickPlayingTime) * clip.frameRate * _playSpeed, clip.length * clip.frameRate);
+                TryExecuteClipChangeUpdate();
+            }
         }
 
         public void ChangeAnimator(Animator inAnimator)
         {
             animator = inAnimator;
+            if (!_isQuickPlaying)
+            {
+                _isQuickFrame = false;
+                _isQuickPlaying = false;
+            }
             TryExecuteAnimatorUpdate();
             TryExecuteClipChangeUpdate();
         }
@@ -85,6 +138,11 @@ namespace Hai.VisualExpressionsEditor.Scripts
             if (clip == inClip) return;
 
             clip = inClip;
+            if (!_isQuickPlaying)
+            {
+                _isQuickFrame = false;
+                _isQuickPlaying = false;
+            }
             _manuallyActedChanges = new HashSet<EditorCurveBinding>();
             TryExecuteClipChangeUpdate();
         }
@@ -98,7 +156,21 @@ namespace Hai.VisualExpressionsEditor.Scripts
             EditorGUILayout.LabelField("Auto Select", GUILayout.Width(100));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(autoSelectClip)), GUIContent.none, GUILayout.Width(25));
             EditorGUILayout.EndHorizontal();
-            EditorGUILayout.IntSlider(serializedObject.FindProperty(nameof(thumbnailSize)), 100, 300);
+            if (_loopEditFeatureAvailable)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.IntSlider(serializedObject.FindProperty(nameof(thumbnailSize)), 100, 300);
+                Colored(animationLoopEdit, Color.cyan, () =>
+                {
+                    EditorGUILayout.LabelField("Loop Edit", animationLoopEdit ? EditorStyles.boldLabel : EditorStyles.label, GUILayout.Width(100));
+                    EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(animationLoopEdit)), GUIContent.none, GUILayout.Width(25));
+                });
+                EditorGUILayout.EndHorizontal();
+            }
+            else
+            {
+                EditorGUILayout.IntSlider(serializedObject.FindProperty(nameof(thumbnailSize)), 100, 300);
+            }
 
             EditorGUI.BeginDisabledGroup(animator == null || AnimationMode.InAnimationMode());
             if (GUILayout.Button("Update"))
@@ -157,6 +229,8 @@ namespace Hai.VisualExpressionsEditor.Scripts
 
             serializedObject.ApplyModifiedProperties();
 
+            var isLoopEdit = animationLoopEdit && _loopEditFeatureAvailable;
+
             var width = Mathf.Max(_generatedSize, MinWidth);
             var showCondition = smrToTex2ds.Length > 0;
             if (animator != null && showCondition && _generatedFor == animator)
@@ -186,11 +260,60 @@ namespace Hai.VisualExpressionsEditor.Scripts
                         }
                         EditorGUILayout.EndHorizontal();
                     }
+                    else
+                    {
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUI.BeginDisabledGroup(true);
+                        ColoredBgButton(true, Color.yellow, () => GUILayout.Button($"Delete all 0-values ({all0ValueBindings.Count})", GUILayout.Width(0)));
+                        EditorGUI.EndDisabledGroup();
+                        EditorGUILayout.EndHorizontal();
+                    }
+
+                    if (isLoopEdit)
+                    {
+                        var newLooping = EditorGUILayout.Toggle("Is Looping Animation", clip.isLooping);
+                        if (newLooping != clip.isLooping)
+                        {
+                            Undo.RecordObject(clip, "VEE Change clip looping");
+                            var settings = AnimationUtility.GetAnimationClipSettings(clip);
+                            settings.loopTime = newLooping;
+                            AnimationUtility.SetAnimationClipSettings(clip, settings);
+                        }
+                        if (!clip.isLooping)
+                        {
+                            EditorGUILayout.HelpBox("This animation clip is not set to looping.", MessageType.Error);
+                        }
+                    }
                 }
                 EditorGUILayout.EndVertical();
-                RectOnRepaint(() => GUILayoutUtility.GetRect(width - 300, 350), rect => m_ActiveRect = rect);
+                var height = isLoopEdit ? 470 : 350;
+                RectOnRepaint(() => GUILayoutUtility.GetRect(width - 300, height), rect => m_ActiveRect = rect);
                 GUILayout.BeginArea(m_ActiveRect);
-                _scrollPosActive = GUILayout.BeginScrollView(_scrollPosActive, GUILayout.Height(350));
+                if (clip != null && isLoopEdit)
+                {
+                    LoopEditMode();
+                }
+
+                if (isLoopEdit && _isQuickFrame)
+                {
+                    if (_isQuickPlaying)
+                    {
+                        _quickAnyways = EditorGUILayout.Toggle("Edit during play (SLOW)", _quickAnyways);
+                    }
+                    if (!_isQuickPlaying || !_quickAnyways)
+                    {
+                        if (GUILayout.Button("Continue...", GUILayout.Height(100)))
+                        {
+                            _isQuickFrame = false;
+                            _isQuickPlaying = false;
+                        }
+                        GUILayout.EndArea();
+                        EditorGUILayout.EndHorizontal();
+                        return;
+                    }
+                }
+
+                _scrollPosActive = GUILayout.BeginScrollView(_scrollPosActive, GUILayout.Height(height - (isLoopEdit ? 70 : 0)));
                 DisplayBlendshapeSelector(width, Screen.width - 300, all0ValueBindings, true);
                 GUILayout.EndScrollView();
                 GUILayout.EndArea();
@@ -201,10 +324,92 @@ namespace Hai.VisualExpressionsEditor.Scripts
                     + (advanced ? 6 : 0)
                     + (basePose != null ? (advanced ? 3 : 5) : 0)
                     + (focusedBone != HumanBodyBones.Head ? 1 : 0)
-                ) - 350));
+                ) - height));
                 DisplayBlendshapeSelector(width, Screen.width, all0ValueBindings, false);
                 GUILayout.EndScrollView();
             }
+        }
+
+        private void LoopEditMode()
+        {
+            // EditorGUILayout.HelpBox("Loop Edit mode is active. When in this mode, the sliders will behave differently.\nDisable Loop Edit mode if you are not editing looping clips.", MessageType.Warning);
+            var currentFrame = ReflectiveGetFirstAnimationTabFrame();
+            var totalLength = (int) (clip.frameRate * clip.length);
+
+            EditorGUILayout.BeginHorizontal();
+            var quickFrame = ColoredReturning(_isQuickFrame, Color.cyan, () => EditorGUILayout.IntSlider("Quick Preview", _lastQuickFrame, 0, totalLength));
+            if (ColoredBgButton(_isQuickPlaying, Color.green, () => GUILayout.Button("Play", GUILayout.Width(50))))
+            {
+                if (!_isQuickPlaying)
+                {
+                    _isQuickFrame = true;
+                    _isQuickPlaying = true;
+                    _isQuickPlayingFrame = _lastQuickFrame;
+                    _isQuickPlayingTime = Time.time;
+                }
+                else
+                {
+                    _isQuickFrame = false;
+                    _isQuickPlaying = false;
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            var sliderInfluencedFrame = EditorGUILayout.IntSlider("Edit Frame", currentFrame, 0, totalLength);
+            if (_isQuickPlaying)
+            {
+                _playSpeed = EditorGUILayout.FloatField(_playSpeed, GUILayout.Width(50));
+            }
+            else
+            {
+                EditorGUILayout.LabelField("", GUILayout.Width(50));
+            }
+            EditorGUILayout.EndHorizontal();
+
+            if (quickFrame != _lastQuickFrame)
+            {
+                _isQuickFrame = true;
+            }
+            else if (currentFrame <= totalLength && sliderInfluencedFrame != currentFrame)
+            {
+                ReflectiveSetFirstAnimationTabFrame(sliderInfluencedFrame);
+                GetWindow(_animationWindowType, false, null, false).Repaint();
+                _isQuickFrame = false;
+                _isQuickPlaying = false;
+                currentFrame = sliderInfluencedFrame;
+            }
+
+            if (currentFrame != _lastCurrentFrame || _isQuickFrame && quickFrame != _lastQuickFrame)
+            {
+                TryExecuteClipChangeUpdate();
+            }
+
+            _lastQuickFrame = !_isQuickFrame ? currentFrame : quickFrame;
+            _lastCurrentFrame = currentFrame;
+        }
+
+        private int CurrentQuickFrameOrAnimationTabFrame()
+        {
+            if (_isQuickFrame) return _lastQuickFrame;
+            return ReflectiveGetFirstAnimationTabFrame();
+        }
+
+        private int ReflectiveGetFirstAnimationTabFrame()
+        {
+            var animationWindow = GetWindow(_animationWindowType, false, null, false);
+            var animEditor = _animationWindowAnimEditorField.GetValue(animationWindow);
+            var editorState = _animEditorStateField.GetValue(animEditor);
+            var currentFrame = (int) _animationWindowStateCurrentFrameProperty.GetValue(editorState);
+            return currentFrame;
+        }
+
+        private void ReflectiveSetFirstAnimationTabFrame(int frame)
+        {
+            var animationWindow = GetWindow(_animationWindowType, false, null, false);
+            var animEditor = _animationWindowAnimEditorField.GetValue(animationWindow);
+            var editorState = _animEditorStateField.GetValue(animEditor);
+            _animationWindowStateCurrentFrameProperty.SetValue(editorState, frame);
         }
 
         public static void RectOnRepaint(Func<Rect> rectFn, Action<Rect> applyFn)
@@ -223,6 +428,10 @@ namespace Hai.VisualExpressionsEditor.Scripts
             var intWidthDpiFix = (int) (screenWidth * dpiFix);
             var mod = Mathf.Max(1, intWidthDpiFix / (width + 15));
             var highlightColor = EditorGUIUtility.isProSkin ? new Color(0.92f, 0.62f, 0.25f) : new Color(0.74f, 0.47f, 0.1f);
+
+            var isLoopEdit = animationLoopEdit && _loopEditFeatureAvailable;
+            var currentFrame = isLoopEdit ? ReflectiveGetFirstAnimationTabFrame() : 0;
+            var currentTime = (currentFrame * 1f) / (clip != null ? clip.frameRate : 60);
 
             var allBindings = clip != null ? AnimationUtility.GetCurveBindings(clip).ToImmutableHashSet() : ImmutableHashSet<EditorCurveBinding>.Empty;
             var layoutActive = false;
@@ -322,30 +531,149 @@ namespace Hai.VisualExpressionsEditor.Scripts
 
                     // var weight = serializedSkinnedMesh.FindProperty("m_BlendShapeWeights").GetArrayElementAtIndex(index);
                     // var isNonZero = weight.floatValue > 0f;
-                    if (existsInAnimation
-                        && existsAllSameValue
-                        && (existsFirstValue != 0f || _manuallyActedChanges.Contains(binding))
-                        // Some animations have constants outside threshold, and these will get silently edited to 100 if the editor is allowed
-                        && existsFirstValue >= 0f && existsFirstValue <= 100f
-                        )
+                    if (existsInAnimation)
                     {
-                        var newValue = EditorGUILayout.Slider(GUIContent.none, existsFirstValue, 0f, 100f, GUILayout.Width(width));
-                        if (newValue != existsFirstValue)
+                        if (isLoopEdit)
                         {
-                            _manuallyActedChanges.Add(binding);
-                            ModifyAnimatable(binding, newValue);
+                            var found = false;
+                            var isFirstOrLastKey = false;
+                            var foundKeyIndex = 0;
+
+                            var curve = AnimationUtility.GetEditorCurve(clip, binding);
+                            if (curve.keys.Length == 1 || (curve.keys.Length == 2 && curve.keys[0].value == curve.keys[1].value))
+                            {
+                                var oldValue = curve.keys[0].value;
+                                var newValue = ColoredReturning(true, Color.cyan, () => EditorGUILayout.Slider(GUIContent.none, oldValue, Mathf.Min(0f, oldValue), Mathf.Max(100f, oldValue), GUILayout.Width(width)));
+                                if (newValue != oldValue)
+                                {
+                                    _manuallyActedChanges.Add(binding);
+                                    ModifyAnimatable(binding, newValue);
+                                }
+
+                                found = Math.Abs(currentTime - curve.keys[0].time) < 0.001f || curve.keys.Length == 2 && Math.Abs(currentTime - curve.keys[1].time) < 0.001f;
+                                isFirstOrLastKey = found;
+                            }
+                            else
+                            {
+                                for (var keyIndex = 0; keyIndex < curve.keys.Length; keyIndex++)
+                                {
+                                    var curveKey = curve.keys[keyIndex];
+                                    if (curveKey.time == currentTime)
+                                    {
+                                        isFirstOrLastKey = keyIndex == 0 || keyIndex == curve.keys.Length - 1;
+                                        foundKeyIndex = keyIndex;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+
+                                if (found)
+                                {
+                                    var foundCurveKey = curve.keys[foundKeyIndex];
+                                    var isSameValueInOtherEnd = false;
+                                    var oldValue = foundCurveKey.value;
+                                    if (isFirstOrLastKey)
+                                    {
+                                        var otherEndKeyIndex = foundKeyIndex == 0 ? curve.keys.Length - 1 : 0;
+                                        var otherEndCurveKey = curve.keys[otherEndKeyIndex];
+                                        isSameValueInOtherEnd = otherEndCurveKey.value == oldValue;
+                                    }
+
+                                    if (isSameValueInOtherEnd)
+                                    {
+                                        var newValue = ColoredReturning(true, Color.cyan, () => EditorGUILayout.Slider(GUIContent.none, oldValue, Mathf.Min(0f, oldValue), Mathf.Max(100f, oldValue), GUILayout.Width(width)));
+                                        if (newValue != oldValue)
+                                        {
+                                            ModifyMultipleKeyframeValueAnimatable(binding, 0, curve.keys.Length - 1, newValue);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        var newValue = EditorGUILayout.Slider(GUIContent.none, oldValue, Mathf.Min(0f, oldValue), Mathf.Max(100f, oldValue), GUILayout.Width(width));
+                                        if (newValue != oldValue)
+                                        {
+                                            ModifyKeyframeValueAnimatable(binding, foundKeyIndex, newValue);
+                                        }
+                                    }
+                                }
+
+                                if (!found)
+                                {
+                                    EditorGUI.BeginDisabledGroup(true);
+                                    var oldValue = curve.Evaluate(currentTime);
+                                    EditorGUILayout.Slider(GUIContent.none, oldValue, Mathf.Min(0f, oldValue), Mathf.Max(100f, oldValue), GUILayout.Width(width));
+                                    EditorGUI.EndDisabledGroup();
+                                }
+                            }
+
+                            var isLoopingBroken = curve.keys.Length >= 2 && curve.keys[0].value != curve.keys[curve.keys.Length - 1].value;
+
+                            EditorGUILayout.BeginHorizontal();
+                            // EditorGUILayout.TextField($"×{curve.length}", false ? EditorStyles.boldLabel : EditorStyles.label, GUILayout.Width(20));
+
+                            EditorGUI.BeginDisabledGroup(!curve.keys.Any(keyframe => keyframe.time < currentTime - 0.001f));
+                            if (GUILayout.Button("<", GUILayout.Width(20)))
+                            {
+                                ReflectiveSetFirstAnimationTabFrame(Mathf.RoundToInt(curve.keys.Select(keyframe => keyframe.time).Last(time => time < currentTime - 0.001f) * clip.frameRate));
+                            }
+                            EditorGUI.EndDisabledGroup();
+
+                            EditorGUI.BeginDisabledGroup(isFirstOrLastKey);
+                            if (found && !isFirstOrLastKey)
+                            {
+                                if (ColoredBgButton(true, Color.red, () => GUILayout.Button("×", GUILayout.Width(40))))
+                                {
+                                    ModifyRemoveKeyframeAnimatable(binding, foundKeyIndex);
+                                }
+                            }
+                            else
+                            {
+                                if (ColoredBgButton(true, Color.cyan, () => GUILayout.Button("+", GUILayout.Width(40))))
+                                {
+                                    ModifyAddKeyframeAnimatable(binding, curve.Evaluate(currentTime), currentTime);
+                                }
+                            }
+                            EditorGUI.EndDisabledGroup();
+
+                            EditorGUI.BeginDisabledGroup(!curve.keys.Any(keyframe => keyframe.time > currentTime + 0.001f));
+                            if (GUILayout.Button(">", GUILayout.Width(20)))
+                            {
+                                ReflectiveSetFirstAnimationTabFrame(Mathf.RoundToInt(curve.keys.Select(keyframe => keyframe.time).First(time => time > currentTime + 0.001f) * clip.frameRate));
+                            }
+                            EditorGUI.EndDisabledGroup();
+
+                            EditorGUI.BeginDisabledGroup(true);
+                            if (ColoredBgButton(true, isLoopingBroken ? Color.magenta : Color.cyan, () => GUILayout.Button(isLoopingBroken ? "Broken" : "", GUILayout.Width(isLoopingBroken ? 50 : 0))))
+                            {
+                            }
+                            EditorGUI.EndDisabledGroup();
+                            EditorGUILayout.EndHorizontal();
                         }
-                    }
-                    else if (existsInAnimation && existsAllSameValue && (existsFirstValue < 0f || existsFirstValue > 100f))
-                    {
-                        EditorGUILayout.LabelField(string.Format(CultureInfo.InvariantCulture, "[{0:0.##}]", existsFirstValue), GUILayout.Width(width));
-                    }
-                    else if (existsInAnimation && !existsAllSameValue)
-                    {
-                        var curve = AnimationUtility.GetEditorCurve(clip, binding);
-                        var min = curve.keys.Select(keyframe => keyframe.value).Min();
-                        var max = curve.keys.Select(keyframe => keyframe.value).Max();
-                        EditorGUILayout.LabelField(string.Format(CultureInfo.InvariantCulture, "[{0:0.##} : {1:0.##}]", min, max), GUILayout.Width(width));
+                        else
+                        {
+                            if (!existsAllSameValue)
+                            {
+                                var curve = AnimationUtility.GetEditorCurve(clip, binding);
+                                var min = curve.keys.Select(keyframe => keyframe.value).Min();
+                                var max = curve.keys.Select(keyframe => keyframe.value).Max();
+                                EditorGUILayout.LabelField(string.Format(CultureInfo.InvariantCulture, "[{0:0.##} : {1:0.##}]", min, max), GUILayout.Width(width));
+                            }
+                            else if (existsAllSameValue && (existsFirstValue < 0f || existsFirstValue > 100f))
+                            {
+                                EditorGUILayout.LabelField(string.Format(CultureInfo.InvariantCulture, "[{0:0.##}]", existsFirstValue), GUILayout.Width(width));
+                            }
+                            else if ((existsFirstValue != 0f || _manuallyActedChanges.Contains(binding))
+                                     // Some animations have constants outside threshold, and these will get silently edited to 100 if the editor is allowed
+                                     && existsFirstValue >= 0f && existsFirstValue <= 100f)
+                            {
+                                var newValue = EditorGUILayout.Slider(GUIContent.none, existsFirstValue, 0f, 100f, GUILayout.Width(width));
+                                if (newValue != existsFirstValue)
+                                {
+                                    _manuallyActedChanges.Add(binding);
+                                    ModifyAnimatable(binding, newValue);
+                                }
+                            }
+                        }
                     }
 
                     EditorGUILayout.EndVertical();
@@ -372,7 +700,8 @@ namespace Hai.VisualExpressionsEditor.Scripts
         {
             if (clip == null) return;
             Undo.RecordObject(clip, $"VEE Add {binding.propertyName} at {binding.path}");
-            AnimationUtility.SetEditorCurve(clip, binding, AnimationCurve.Constant(0, 1/60f, 100f));
+            var max = animationLoopEdit && _loopEditFeatureAvailable && AnimationUtility.GetCurveBindings(clip).Length > 0 ? Mathf.Max(1 / clip.frameRate, clip.length) : 1/60f;
+            AnimationUtility.SetEditorCurve(clip, binding, AnimationCurve.Constant(0, max, 100f));
             TryExecuteClipChangeUpdate();
         }
 
@@ -399,6 +728,79 @@ namespace Hai.VisualExpressionsEditor.Scripts
             }).ToArray();
             AnimationUtility.SetEditorCurve(clip, binding, curve);
             TryExecuteClipChangeUpdate();
+        }
+
+        private void ModifyAddKeyframeAnimatable(EditorCurveBinding binding, float newValue, float currentTime)
+        {
+            if (clip == null) return;
+            Undo.RecordObject(clip, $"VEE Add keyframe {binding.propertyName} at {binding.path}");
+            var curve = AnimationUtility.GetEditorCurve(clip, binding);
+            var addedIndex = curve.AddKey(currentTime, newValue);
+            TrySetTangentMode(curve, addedIndex);
+            AnimationUtility.SetEditorCurve(clip, binding, curve);
+            TryExecuteClipChangeUpdate();
+        }
+
+        private void ModifyRemoveKeyframeAnimatable(EditorCurveBinding binding, int index)
+        {
+            if (clip == null) return;
+            Undo.RecordObject(clip, $"VEE Remove keyframe {binding.propertyName} at {binding.path}");
+            var curve = AnimationUtility.GetEditorCurve(clip, binding);
+            curve.RemoveKey(index);
+            TryUpdateTangents(curve);
+            AnimationUtility.SetEditorCurve(clip, binding, curve);
+            TryExecuteClipChangeUpdate();
+        }
+
+        private void ModifyKeyframeValueAnimatable(EditorCurveBinding binding, int index, float newValue)
+        {
+            if (clip == null) return;
+            Undo.RecordObject(clip, $"VEE Change keyframe {binding.propertyName} at {binding.path}");
+            var curve = AnimationUtility.GetEditorCurve(clip, binding);
+            var keys = curve.keys;
+            keys[index].value = newValue;
+            curve.keys = keys;
+            // TrySetTangentMode(curve, index);
+            TryUpdateTangents(curve);
+            AnimationUtility.SetEditorCurve(clip, binding, curve);
+            TryExecuteClipChangeUpdate();
+        }
+
+        private void ModifyMultipleKeyframeValueAnimatable(EditorCurveBinding binding, int indexA, int indexB, float newValue)
+        {
+            if (clip == null) return;
+            Undo.RecordObject(clip, $"VEE Change keyframe {binding.propertyName} at {binding.path}");
+            var curve = AnimationUtility.GetEditorCurve(clip, binding);
+            var keys = curve.keys;
+            keys[indexA].value = newValue;
+            keys[indexB].value = newValue;
+            // TrySetTangentMode(curve, indexA);
+            // TrySetTangentMode(curve, indexB);
+            TryUpdateTangents(curve);
+            curve.keys = keys;
+            AnimationUtility.SetEditorCurve(clip, binding, curve);
+            TryExecuteClipChangeUpdate();
+        }
+
+        private void TryUpdateTangents(AnimationCurve curve)
+        {
+            typeof(AnimationUtility)
+                .GetMethod("UpdateTangentsFromMode", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, new object[] {curve});
+        }
+
+        private static void TrySetTangentMode(AnimationCurve curve, int index)
+        {
+            AnimationUtility.SetKeyLeftTangentMode(curve, index, AnimationUtility.TangentMode.ClampedAuto);
+            AnimationUtility.SetKeyRightTangentMode(curve, index, AnimationUtility.TangentMode.ClampedAuto);
+            // AnimationUtility.UpdateTangentsFromModeSurrounding(curve, index);
+            // CurveUtility.SetKeyModeFromContext(curve, index);
+            typeof(AnimationUtility)
+                .GetMethod("UpdateTangentsFromModeSurrounding", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, new object[] {curve, index});
+            typeof(AnimationUtility).Assembly.GetType("UnityEditor.CurveUtility")
+                .GetMethod("SetKeyModeFromContext", BindingFlags.Public | BindingFlags.Static)
+                .Invoke(null, new object[] {curve, index});
         }
 
         public void TryExecuteClipChangeUpdate()
@@ -510,6 +912,9 @@ namespace Hai.VisualExpressionsEditor.Scripts
                 var itemCount = 0;
                 var localClip = clip;
                 if (localClip == null) localClip = new AnimationClip(); // Defensive: Might happen if the clip gets deleted during an update
+                var renderTime = animationLoopEdit && _loopEditFeatureAvailable && clip.length > 0f
+                    ? (CurrentQuickFrameOrAnimationTabFrame() * 1f / (clip.length * clip.frameRate))
+                    : normalizedTime;
                 if (basePose != null)
                 {
                     var modifiedClip = Object.Instantiate(localClip);
@@ -520,11 +925,11 @@ namespace Hai.VisualExpressionsEditor.Scripts
                     {
                         AnimationUtility.SetEditorCurve(modifiedClip, missingBinding, AnimationUtility.GetEditorCurve(basePose, missingBinding));
                     }
-                    viewer.Render(modifiedClip, texture, normalizedTime);
+                    viewer.Render(modifiedClip, texture, renderTime);
                 }
                 else
                 {
-                    viewer.Render(localClip, texture, normalizedTime);
+                    viewer.Render(localClip, texture, renderTime);
                 }
 
                 _clipTextureNullable = texture;
@@ -636,6 +1041,20 @@ namespace Hai.VisualExpressionsEditor.Scripts
             {
                 if (isActive) GUI.contentColor = bgColor;
                 inside();
+            }
+            finally
+            {
+                GUI.contentColor = col;
+            }
+        }
+
+        private static T ColoredReturning<T>(bool isActive, Color bgColor, Func<T> inside)
+        {
+            var col = GUI.contentColor;
+            try
+            {
+                if (isActive) GUI.contentColor = bgColor;
+                return inside();
             }
             finally
             {
