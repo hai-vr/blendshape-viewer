@@ -114,9 +114,13 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
 
         private void Update()
         {
+            if (float.IsNaN(_lastQuickFrame))
+            {
+                _lastQuickFrame = 0;
+            }
             if (animationLoopEdit && _loopEditFeatureAvailable && _isQuickFrame && _isQuickPlaying && clip != null)
             {
-                _lastQuickFrame = Mathf.Repeat(_isQuickPlayingFrame + (Time.time - _isQuickPlayingTime) * clip.frameRate * _playSpeed, clip.length * clip.frameRate);
+                _lastQuickFrame = Mathf.Repeat(_isQuickPlayingFrame + (Time.time - _isQuickPlayingTime) * clip.frameRate * _playSpeed, Mathf.Max(1, clip.length * clip.frameRate));
                 TryExecuteClipChangeUpdate();
             }
         }
@@ -334,7 +338,7 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
         {
             // EditorGUILayout.HelpBox("Loop Edit mode is active. When in this mode, the sliders will behave differently.\nDisable Loop Edit mode if you are not editing looping clips.", MessageType.Warning);
             var currentFrame = ReflectiveGetFirstAnimationTabFrame();
-            var totalLength = (int) (clip.frameRate * clip.length);
+            var totalLength = Mathf.Max(1, (int) (clip.frameRate * clip.length));
 
             EditorGUILayout.BeginHorizontal();
             var quickFrame = ColoredReturning(_isQuickFrame, Color.cyan, () => EditorGUILayout.Slider("Quick Preview", _lastQuickFrame, 0, totalLength));
@@ -367,7 +371,7 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
             }
             EditorGUILayout.EndHorizontal();
 
-            if (quickFrame != _lastQuickFrame)
+            if (_lastCurrentFrame <= totalLength && quickFrame != _lastQuickFrame)
             {
                 _isQuickFrame = true;
             }
@@ -735,8 +739,27 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
             if (clip == null) return;
             Undo.RecordObject(clip, $"VEE Add keyframe {binding.propertyName} at {binding.path}");
             var curve = AnimationUtility.GetEditorCurve(clip, binding);
+
+            // The following line needs to be executed before adding the key
+            var existingAreTwoIdentical = curve.keys.Length == 2 && curve.keys[0].value == curve.keys[1].value;
+            // Order matters here
             var addedIndex = curve.AddKey(currentTime, newValue);
-            TrySetTangentMode(curve, addedIndex);
+
+            if (existingAreTwoIdentical)
+            {
+                // By default, created curves is constant pair of identical keyframes.
+                // If the existing two were identical, turn these curves into clamped auto curves, so that adding new keyframes and then modifying the value
+                // won't cause issues with the tangent not updating.
+                for (var i = 0; i < 3; i++)
+                {
+                    TrySetTangentOnly(curve, i);
+                }
+                TryUpdateTangents(curve);
+            }
+            else
+            {
+                TrySetTangentMode(curve, addedIndex);
+            }
             AnimationUtility.SetEditorCurve(clip, binding, curve);
             TryExecuteClipChangeUpdate();
         }
@@ -791,8 +814,7 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
 
         private static void TrySetTangentMode(AnimationCurve curve, int index)
         {
-            AnimationUtility.SetKeyLeftTangentMode(curve, index, AnimationUtility.TangentMode.ClampedAuto);
-            AnimationUtility.SetKeyRightTangentMode(curve, index, AnimationUtility.TangentMode.ClampedAuto);
+            TrySetTangentOnly(curve, index);
             // AnimationUtility.UpdateTangentsFromModeSurrounding(curve, index);
             // CurveUtility.SetKeyModeFromContext(curve, index);
             typeof(AnimationUtility)
@@ -801,6 +823,12 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
             typeof(AnimationUtility).Assembly.GetType("UnityEditor.CurveUtility")
                 .GetMethod("SetKeyModeFromContext", BindingFlags.Public | BindingFlags.Static)
                 .Invoke(null, new object[] {curve, index});
+        }
+
+        private static void TrySetTangentOnly(AnimationCurve curve, int index)
+        {
+            AnimationUtility.SetKeyLeftTangentMode(curve, index, AnimationUtility.TangentMode.ClampedAuto);
+            AnimationUtility.SetKeyRightTangentMode(curve, index, AnimationUtility.TangentMode.ClampedAuto);
         }
 
         public void TryExecuteClipChangeUpdate()
