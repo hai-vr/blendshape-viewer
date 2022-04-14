@@ -54,10 +54,10 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
         private readonly bool _loopEditFeatureAvailable;
         private int _lastCurrentFrame;
         private bool _isQuickFrame;
-        private int _lastQuickFrame;
+        private float _lastQuickFrame;
         private bool _isQuickPlaying;
         private float _isQuickPlayingTime;
-        private int _isQuickPlayingFrame;
+        private float _isQuickPlayingFrame;
         private float _playSpeed = 1f;
         private bool _quickAnyways;
 
@@ -116,7 +116,7 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
         {
             if (animationLoopEdit && _loopEditFeatureAvailable && _isQuickFrame && _isQuickPlaying && clip != null)
             {
-                _lastQuickFrame = (int) Mathf.Repeat(_isQuickPlayingFrame + (Time.time - _isQuickPlayingTime) * clip.frameRate * _playSpeed, clip.length * clip.frameRate);
+                _lastQuickFrame = Mathf.Repeat(_isQuickPlayingFrame + (Time.time - _isQuickPlayingTime) * clip.frameRate * _playSpeed, clip.length * clip.frameRate);
                 TryExecuteClipChangeUpdate();
             }
         }
@@ -337,7 +337,7 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
             var totalLength = (int) (clip.frameRate * clip.length);
 
             EditorGUILayout.BeginHorizontal();
-            var quickFrame = ColoredReturning(_isQuickFrame, Color.cyan, () => EditorGUILayout.IntSlider("Quick Preview", _lastQuickFrame, 0, totalLength));
+            var quickFrame = ColoredReturning(_isQuickFrame, Color.cyan, () => EditorGUILayout.Slider("Quick Preview", _lastQuickFrame, 0, totalLength));
             if (ColoredBgButton(_isQuickPlaying, Color.green, () => GUILayout.Button("Play", GUILayout.Width(50))))
             {
                 if (!_isQuickPlaying)
@@ -389,7 +389,7 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
             _lastCurrentFrame = currentFrame;
         }
 
-        private int CurrentQuickFrameOrAnimationTabFrame()
+        private float CurrentQuickFrameOrAnimationTabFrame()
         {
             if (_isQuickFrame) return _lastQuickFrame;
             return ReflectiveGetFirstAnimationTabFrame();
