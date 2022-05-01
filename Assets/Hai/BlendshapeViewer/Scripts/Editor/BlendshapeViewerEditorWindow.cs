@@ -76,11 +76,9 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             {
                 var serializedSkinnedMesh = new SerializedObject(skinnedMesh);
 
-                _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(Screen.height - EditorGUIUtility.singleLineHeight * 7));
+                _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(position.height - EditorGUIUtility.singleLineHeight * 7));
 
-                var dpiFix = 96f / Screen.dpi;
-                var intWidthDpiFix = (int)(Screen.width * dpiFix);
-                var mod = Mathf.Max(1, intWidthDpiFix / (width + 15));
+                var mod = Mathf.Max(1, (int)position.width / (width + 15));
                 var highlightColor = EditorGUIUtility.isProSkin ? new Color(0.92f, 0.62f, 0.25f) : new Color(0.74f, 0.47f, 0.1f);
                 for (var index = 0; index < total; index++)
                 {

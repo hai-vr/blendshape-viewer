@@ -318,18 +318,18 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
                 }
 
                 _scrollPosActive = GUILayout.BeginScrollView(_scrollPosActive, GUILayout.Height(height - (isLoopEdit ? 70 : 0)));
-                DisplayBlendshapeSelector(width, Screen.width - 300, all0ValueBindings, true);
+                DisplayBlendshapeSelector(width, (int)position.width - 300, all0ValueBindings, true);
                 GUILayout.EndScrollView();
                 GUILayout.EndArea();
                 EditorGUILayout.EndHorizontal();
 
-                _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(Screen.height - EditorGUIUtility.singleLineHeight * (
+                _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(position.height - EditorGUIUtility.singleLineHeight * (
                     7
                     + (advanced ? 6 : 0)
                     + (basePose != null ? (advanced ? 3 : 5) : 0)
                     + (focusedBone != HumanBodyBones.Head ? 1 : 0)
                 ) - height));
-                DisplayBlendshapeSelector(width, Screen.width, all0ValueBindings, false);
+                DisplayBlendshapeSelector(width, (int)position.width, all0ValueBindings, false);
                 GUILayout.EndScrollView();
             }
         }
@@ -428,9 +428,7 @@ namespace Hai.VisualExpressionsEditor.Scripts.Editor
 
         private void DisplayBlendshapeSelector(int width, int screenWidth, ImmutableHashSet<EditorCurveBinding> all0ValueBindings, bool summaryView)
         {
-            var dpiFix = 96f / Screen.dpi;
-            var intWidthDpiFix = (int) (screenWidth * dpiFix);
-            var mod = Mathf.Max(1, intWidthDpiFix / (width + 15));
+            var mod = Mathf.Max(1, screenWidth / (width + 15));
             var highlightColor = EditorGUIUtility.isProSkin ? new Color(0.92f, 0.62f, 0.25f) : new Color(0.74f, 0.47f, 0.1f);
 
             var isLoopEdit = animationLoopEdit && _loopEditFeatureAvailable;

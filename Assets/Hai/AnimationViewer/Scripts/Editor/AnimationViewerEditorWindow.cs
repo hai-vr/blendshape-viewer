@@ -71,7 +71,7 @@ namespace Hai.AnimationViewer.Scripts.Editor
 
         private void OnGUI()
         {
-            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(Screen.height - EditorGUIUtility.singleLineHeight));
+            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(position.height - EditorGUIUtility.singleLineHeight));
             var serializedObject = new SerializedObject(this);
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(animator)));
             EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(autoUpdateOnFocus)));
