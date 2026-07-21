@@ -402,11 +402,17 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private void OnFocus()
         {
             UpdateUpdateButtonEnabledState();
-            if (!_editorPrefs.AutoUpdateOnFocus) return;
-            if (skinnedMesh == null) return;
-            if (!HasGenerationParamsChanged()) return;
 
-            TryExecuteUpdate();
+            if (_editorPrefs.AutoUpdateOnFocus)
+            {
+                EditorApplication.delayCall += () => EditorApplication.delayCall += () =>
+                {
+                    if (skinnedMesh == null) return;
+                    if (!HasGenerationParamsChanged()) return;
+
+                    TryExecuteUpdate();
+                };
+            }
         }
 
         private void Update()
