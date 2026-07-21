@@ -9,7 +9,7 @@
     "phrases": {
       "documentation_url": "https://docs.hai-vr.dev/fr/docs/products/blendshape-viewer",
       "show_differences": "Afficher les différences",
-      "alt_to_show_hotspots": "Afficher les hotspots",
+      "alt_to_show_hotspots": "ALT pour afficher les hotspots",
       "auto_update_on_focus": "Auto-update au focus",
       "thumbnail_size": "Taille de la vignette",
       "mesh": "Skinned Mesh",
