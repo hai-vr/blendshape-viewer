@@ -70,7 +70,14 @@
                 if (_Hotspots > 0.01) {
                     fixed3 neutral = tex2D(_NeutralTex, i.uv).xyz;
                     fixed3 morphed = tex2D(_MainTex, i.uv).xyz;
-                    col = lerp(col, length(neutral - morphed) * float4(1, 1, 0, 1), _Hotspots);
+                    float isGreater = ((neutral.x + neutral.y + neutral.z) - (morphed.x + morphed.y + morphed.z)) / 3.0;
+                    isGreater = isGreater * 5;
+                    if (isGreater > 1) isGreater = 1;
+                    else if (isGreater < -1) isGreater = -1;
+                    isGreater = isGreater * 0.5 + 0.5;
+                    
+                    float4 highlight = lerp(float4(1, 0.65, 0, 1), float4(1, 0, 0, 1), isGreater);
+                    col = lerp(col, length(neutral - morphed) * highlight, _Hotspots);
                 }
                 return col;
             }
