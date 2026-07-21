@@ -1,0 +1,26 @@
+﻿{
+  "_meta": {
+    "language": "fr",
+    "name": "Français",
+    "variant": "gemini-3-flash-preview",
+    "prompt": "When requested to translate a localization file, follow the rules in this prompt. _meta.prompt must not be changed. _meta.name must be in the requested language, not English. For example, it should be 日本語 in the Japanese language. _meta.variant must be the model used, for example GPT-5 or Gemini 3; of course, substitute with the LLM model in use. The words Unity, unitypackage, and DLL are technical terms so they must remain in English."
+  },
+  "dev.hai-vr.blendshape-viewer": {
+    "phrases": {
+      "documentation_url": "https://docs.hai-vr.dev/fr/docs/products/blendshape-viewer",
+      "show_differences": "Afficher les différences",
+      "show_hotspots": "Afficher les hotspots",
+      "auto_update_on_focus": "Auto-update au focus",
+      "use_compute_shader": "Utiliser le Compute Shader",
+      "thumbnail_size": "Taille de la vignette",
+      "mesh": "Skinned Mesh",
+      "update": "Mettre à jour",
+      "search": "Rechercher",
+      "copy_to_clipboard": "Copier {0} dans le presse-papiers",
+      "rendering": "Rendu en cours",
+      "rendering_progress": "Rendu en cours ({0} / {1})"
+    },
+    "enums": {
+    }
+  }
+}

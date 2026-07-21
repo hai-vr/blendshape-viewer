@@ -1,24 +1,24 @@
 ﻿{
   "_meta": {
-    "language": "ja",
-    "name": "日本語",
+    "language": "zh-cn",
+    "name": "简体中文",
     "variant": "gemini-3-flash-preview",
     "prompt": "When requested to translate a localization file, follow the rules in this prompt. _meta.prompt must not be changed. _meta.name must be in the requested language, not English. For example, it should be 日本語 in the Japanese language. _meta.variant must be the model used, for example GPT-5 or Gemini 3; of course, substitute with the LLM model in use. The words Unity, unitypackage, and DLL are technical terms so they must remain in English."
   },
   "dev.hai-vr.blendshape-viewer": {
     "phrases": {
-      "documentation_url": "https://docs.hai-vr.dev/ja/docs/products/blendshape-viewer",
-      "show_differences": "差異を表示",
-      "show_hotspots": "ホットスポットを表示",
-      "auto_update_on_focus": "マウスオーバー時に自動更新",
-      "use_compute_shader": "コンピュートシェーダーを使用",
-      "thumbnail_size": "サムネイルサイズ",
+      "documentation_url": "https://docs.hai-vr.dev/zh-Hans/docs/products/blendshape-viewer",
+      "show_differences": "显示差异",
+      "show_hotspots": "显示热点",
+      "auto_update_on_focus": "鼠标移入时自动更新",
+      "use_compute_shader": "使用 Compute Shader",
+      "thumbnail_size": "缩略图大小",
       "mesh": "Skinned Mesh",
       "update": "更新",
-      "search": "検索",
-      "copy_to_clipboard": "{0}をクリップボードにコピー",
-      "rendering": "レンダリング中",
-      "rendering_progress": "レンダリング中 ({0} / {1})"
+      "search": "搜索",
+      "copy_to_clipboard": "复制 {0} 到剪贴板",
+      "rendering": "正在渲染",
+      "rendering_progress": "正在渲染 ({0} / {1})"
     },
     "enums": {
     }
