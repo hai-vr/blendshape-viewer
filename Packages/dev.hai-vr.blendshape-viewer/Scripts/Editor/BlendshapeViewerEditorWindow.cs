@@ -11,11 +11,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private const int MaxSearchQueryLength = 100;
         
         public SkinnedMeshRenderer skinnedMesh;
-        public bool showDifferences = true;
-        public bool autoUpdateOnFocus = true;
-        public int thumbnailSize = 100;
-        public bool showHotspots;
-        public bool useComputeShader = true;
+        private readonly BlendshapeViewerEditorPrefs _editorPrefs = new();
         public Texture2D[] tex2ds = new Texture2D[0];
 
         private string _search = "";
