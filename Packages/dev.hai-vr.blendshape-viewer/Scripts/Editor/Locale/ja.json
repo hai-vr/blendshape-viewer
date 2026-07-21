@@ -11,7 +11,6 @@
       "show_differences": "差異を表示",
       "show_hotspots": "ホットスポットを表示",
       "auto_update_on_focus": "マウスオーバー時に自動更新",
-      "use_compute_shader": "コンピュートシェーダーを使用",
       "thumbnail_size": "サムネイルサイズ",
       "mesh": "Skinned Mesh",
       "update": "更新",

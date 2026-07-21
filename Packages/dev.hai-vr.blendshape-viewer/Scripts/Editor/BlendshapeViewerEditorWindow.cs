@@ -23,7 +23,6 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             public const string show_hotspots = nameof(show_hotspots);
             public const string thumbnail_size = nameof(thumbnail_size);
             public const string update = nameof(update);
-            public const string use_compute_shader = nameof(use_compute_shader);
         }
 
         private const int MinWidth = 150;
@@ -176,12 +175,6 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var autoUpdateToggle = new Toggle(localize.Text(Phrases.auto_update_on_focus)) { value = _editorPrefs.AutoUpdateOnFocus, style = { flexGrow = 1, flexBasis = 0 } };
             autoUpdateToggle.RegisterValueChangedCallback(evt => _editorPrefs.AutoUpdateOnFocus = evt.newValue);
             togglesRow.Add(autoUpdateToggle);
-            if (SystemInfo.supportsComputeShaders)
-            {
-                var useComputeShaderToggle = new Toggle(localize.Text(Phrases.use_compute_shader)) { value = _editorPrefs.UseComputeShader, style = { flexGrow = 1, flexBasis = 0 } };
-                useComputeShaderToggle.RegisterValueChangedCallback(evt => _editorPrefs.UseComputeShader = evt.newValue);
-                togglesRow.Add(useComputeShaderToggle);
-            }
             topSettings.Add(togglesRow);
 
             var sizeSlider = new SliderInt(localize.Text(Phrases.thumbnail_size), 100, 300) { value = _editorPrefs.ThumbnailSize };
@@ -483,7 +476,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var module = new BlendshapeViewerGenerator();
             try
             {
-                module.Begin(skinnedMesh, _editorPrefs.ShowHotspots ? 0.95f : 0, _editorPrefs.UseComputeShader);
+                module.Begin(skinnedMesh, _editorPrefs.ShowHotspots ? 0.95f : 0);
                 Texture2D neutralTexture = null;
                 if (_editorPrefs.ShowDifferences)
                 {

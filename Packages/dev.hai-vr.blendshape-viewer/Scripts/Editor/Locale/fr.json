@@ -11,7 +11,6 @@
       "show_differences": "Afficher les différences",
       "show_hotspots": "Afficher les hotspots",
       "auto_update_on_focus": "Auto-update au focus",
-      "use_compute_shader": "Utiliser le Compute Shader",
       "thumbnail_size": "Taille de la vignette",
       "mesh": "Skinned Mesh",
       "update": "Mettre à jour",

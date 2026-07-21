@@ -29,11 +29,5 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             get => EditorPrefs.GetBool(PrefsPrefix + nameof(ShowHotspots), false);
             set => EditorPrefs.SetBool(PrefsPrefix + nameof(ShowHotspots), value);
         }
-
-        public bool UseComputeShader
-        {
-            get => EditorPrefs.GetBool(PrefsPrefix + nameof(UseComputeShader), true);
-            set => EditorPrefs.SetBool(PrefsPrefix + nameof(UseComputeShader), value);
-        }
     }
 }

@@ -12,11 +12,11 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private float _overlay;
         private BlendshapeViewerDiffCompute _diffCompute;
 
-        public void Begin(SkinnedMeshRenderer skinnedMesh, float overlay, bool useComputeShader)
+        public void Begin(SkinnedMeshRenderer skinnedMesh, float overlay)
         {
             _skinnedMesh = skinnedMesh;
             _overlay = overlay;
-            _useComputeShader = SystemInfo.supportsComputeShaders && useComputeShader;
+            _useComputeShader = SystemInfo.supportsComputeShaders;
 
             _material = new Material(_useComputeShader ? Shader.Find("Hai/BlendshapeViewerRectOnly") : Shader.Find("Hai/BlendshapeViewer"));
             _material.SetFloat("_Hotspots", _overlay);
