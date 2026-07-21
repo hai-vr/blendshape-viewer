@@ -97,7 +97,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                 _isAlt = alt;
                 _altToShowHotspotsChanged = false;
                 
-                var shouldShowHotspots = _isAlt ^ _editorPrefs.AltToShowHotspots;
+                var shouldShowHotspots = _editorPrefs.ShowDifferences && (_isAlt ^ _editorPrefs.AltToShowHotspots);
                 for (var index = 0; index < _images.Count; index++)
                 {
                     var image = _images[index];
