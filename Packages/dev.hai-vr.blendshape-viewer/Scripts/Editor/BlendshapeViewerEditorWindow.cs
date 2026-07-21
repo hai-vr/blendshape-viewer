@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.UIElements;
 
 namespace Hai.BlendshapeViewer.Scripts.Editor
@@ -57,8 +58,6 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private float _generatedFarClipPlane;
         private float _generatedOrthographicSize;
         
-        private const string SearchLabelText = "Search";
-
         private VisualElement _root;
         private VisualElement _container;
         private VisualElement _grid;
@@ -477,20 +476,39 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             skinnedMesh = inSkinnedMesh;
         }
 
+        public struct BlendshapeState
+        {
+            public SkinnedMeshRenderer skinnedMesh;
+            public int index;
+            public float initialWeight;
+            public float desiredWeightForCapture;
+            public bool isSmrEnabled;
+        }
+
         private void Generate()
         {
             var module = new BlendshapeViewerGenerator();
             try
             {
-                module.Begin(skinnedMesh, _editorPrefs.ShowHotspots ? 0.95f : 0);
+                var x = NewTexture();
+                var renderTexture = RenderTexture.GetTemporary(x.width, x.height, 24);
+                renderTexture.wrapMode = TextureWrapMode.Clamp;
+                
+                module.Begin(_editorPrefs.ShowHotspots ? 0.95f : 0);
                 Texture2D neutralTexture = null;
                 if (_editorPrefs.ShowDifferences)
                 {
                     neutralTexture = NewTexture();
-                    module.Render(EmptyClip(), neutralTexture);
+                    module.Render(new BlendshapeState
+                    {
+                        skinnedMesh = skinnedMesh,
+                        index = -1,
+                        initialWeight = 0,
+                        desiredWeightForCapture = 0
+                    }, neutralTexture, renderTexture);
                 }
 
-                var results = new [] {skinnedMesh}
+                var generatedStates = new [] {skinnedMesh}
                     .SelectMany(relevantSmr =>
                     {
                         var sharedMesh = relevantSmr.sharedMesh;
@@ -498,59 +516,65 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                         return Enumerable.Range(0, sharedMesh.blendShapeCount)
                             .Select(i =>
                             {
-                                var blendShapeName = sharedMesh.GetBlendShapeName(i);
                                 var currentWeight = relevantSmr.GetBlendShapeWeight(i);
 
                                 // If the user has already animated this to 100, in normal circumstances the diff would show nothing.
                                 // Animate the blendshape to 0 instead so that a diff can be generated.
                                 var isAlreadyAnimatedTo100 = Math.Abs(currentWeight - 100f) < 0.001f;
-                                var tempClip = new AnimationClip();
-                                AnimationUtility.SetEditorCurve(
-                                    tempClip,
-                                    new EditorCurveBinding
-                                    {
-                                        path = "",
-                                        type = typeof(SkinnedMeshRenderer),
-                                        propertyName = $"blendShape.{blendShapeName}"
-                                    },
-                                    AnimationCurve.Constant(0, 1 / 60f, isAlreadyAnimatedTo100 ? 0f : 100f)
-                                );
+                                var desiredValue = isAlreadyAnimatedTo100 ? 0f : 100f;
 
-                                return tempClip;
+                                return new BlendshapeState
+                                {
+                                    skinnedMesh = relevantSmr,
+                                    isSmrEnabled = relevantSmr.enabled,
+                                    index = i,
+                                    initialWeight = currentWeight,
+                                    desiredWeightForCapture = desiredValue
+                                };
                             })
                             .ToArray();
                     })
                     .ToArray();
-
-                tex2ds = results
-                    .Select((clip, i) =>
+                
+                tex2ds = generatedStates
+                    .Select((blendshapeToRender, i) =>
                     {
-                        if (i % 10 == 0) EditorUtility.DisplayProgressBar(localize.Text(Phrases.rendering), localize.Format(Phrases.rendering_progress, i, results.Length), 1f * i / results.Length);
+                        Profiler.BeginSample("BlendshapeViewer.InTexture");
+                        if (i % 10 == 0) EditorUtility.DisplayProgressBar(localize.Text(Phrases.rendering), localize.Format(Phrases.rendering_progress, i, generatedStates.Length), 1f * i / generatedStates.Length);
 
                         var currentWeight = skinnedMesh.GetBlendShapeWeight(i);
                         var isAlreadyAnimatedTo100 = Math.Abs(currentWeight - 100f) < 0.001f;
 
-                        var result = NewTexture();
-                        module.Render(clip, result);
+                        var texture = NewTexture();
+                        Profiler.BeginSample("BlendshapeViewer.InRender");
+                        module.Render(blendshapeToRender, texture, renderTexture);
+                        Profiler.EndSample();
                         if (i == 0)
                         {
+                            Profiler.BeginSample("BlendshapeViewer.InRenderSecondary");
                             // Workaround a weird bug where the first blendshape is always incorrectly rendered
-                            module.Render(clip, result);
+                            module.Render(blendshapeToRender, texture, renderTexture);
+                            Profiler.EndSample();
                         }
                         if (_editorPrefs.ShowDifferences)
                         {
+                            Profiler.BeginSample("BlendshapeViewer.InDiff");
                             if (isAlreadyAnimatedTo100)
                             {
-                                module.Diff(neutralTexture, result, result);
+                                module.Diff(neutralTexture, texture, texture);
                             }
                             else
                             {
-                                module.Diff(result, neutralTexture, result);
+                                module.Diff(texture, neutralTexture, texture);
                             }
+                            Profiler.EndSample();
                         }
-                        return result;
+                        Profiler.EndSample();
+                        return texture;
                     })
                     .ToArray();
+                
+                RenderTexture.ReleaseTemporary(renderTexture);
             }
             finally
             {

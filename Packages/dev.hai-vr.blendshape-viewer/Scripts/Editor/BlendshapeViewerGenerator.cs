@@ -1,20 +1,19 @@
 ﻿using UnityEditor;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Hai.BlendshapeViewer.Scripts.Editor
 {
-    public class BlendshapeViewerGenerator
+    internal class BlendshapeViewerGenerator
     {
         private Material _material;
-        private SkinnedMeshRenderer _skinnedMesh;
         private bool _useComputeShader;
         private Camera _camera;
         private float _overlay;
         private BlendshapeViewerDiffCompute _diffCompute;
 
-        public void Begin(SkinnedMeshRenderer skinnedMesh, float overlay)
+        public void Begin(float overlay)
         {
-            _skinnedMesh = skinnedMesh;
             _overlay = overlay;
             _useComputeShader = SystemInfo.supportsComputeShaders;
 
@@ -48,25 +47,34 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
-        public void Render(AnimationClip clip, Texture2D element)
+        public void Render(BlendshapeViewerEditorWindow.BlendshapeState blendshapeToRender, Texture2D element, RenderTexture rt)
         {
             try
             {
-                AnimationMode.StartAnimationMode();
-                AnimationMode.BeginSampling();
-                AnimationMode.SampleAnimationClip(_skinnedMesh.gameObject, clip, 1 / 60f);
-                AnimationMode.EndSampling();
+                Profiler.BeginSample("BlendshapeViewer.BeginSampling");
+                if (blendshapeToRender.index != -1)
+                {
+                    blendshapeToRender.skinnedMesh.SetBlendShapeWeight(blendshapeToRender.index, blendshapeToRender.desiredWeightForCapture);
+                    blendshapeToRender.skinnedMesh.enabled = false; // This forces the SkinnedMeshRenderer to update its skinning. I don't know if there's a better way to do that.
+                    blendshapeToRender.skinnedMesh.enabled = true; //
+                }
+                Profiler.EndSample();
 
-                var renderTexture = RenderTexture.GetTemporary(element.width, element.height, 24);
-                renderTexture.wrapMode = TextureWrapMode.Clamp;
-
-                RenderCamera(renderTexture, _camera);
-                RenderTextureTo(renderTexture, element);
-                RenderTexture.ReleaseTemporary(renderTexture);
+                Profiler.BeginSample("BlendshapeViewer.RenderCamera");
+                RenderCamera(rt, _camera);
+                Profiler.EndSample();
+                
+                Profiler.BeginSample("BlendshapeViewer.RenderTextureTo");
+                RenderTextureTo(rt, element);
+                Profiler.EndSample();
             }
             finally
             {
-                AnimationMode.StopAnimationMode();
+                if (blendshapeToRender.index != -1)
+                {
+                    blendshapeToRender.skinnedMesh.SetBlendShapeWeight(blendshapeToRender.index, blendshapeToRender.initialWeight);
+                    blendshapeToRender.skinnedMesh.enabled = blendshapeToRender.isSmrEnabled;
+                }
             }
         }
 
