@@ -61,7 +61,9 @@
                 difference = difference + float4(-1, -1, 1, 1) * 2; // Margin
 
                 fixed4 col = tex2D(_MainTex, i.uv);
-                if (i.uv.x < difference.x / width || i.uv.x > difference.z / width
+                if (_Rect.x == 0 && _Rect.y == 0 && _Rect.z == 0 && _Rect.w == 0) {
+                    col.xyz = col.xyz * 0.05;
+                } else if (i.uv.x < difference.x / width || i.uv.x > difference.z / width
                     || i.uv.y < difference.y / height || i.uv.y > difference.w / height) {
                         col.xyz = col.xyz * 0.2;
                 }
