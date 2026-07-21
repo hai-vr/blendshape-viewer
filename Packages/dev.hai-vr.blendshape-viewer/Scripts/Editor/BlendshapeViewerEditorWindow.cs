@@ -665,7 +665,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             Obtain().Show();
         }
 
-        [MenuItem("CONTEXT/SkinnedMeshRenderer/Haï BlendshapeViewer")]
+        [MenuItem("CONTEXT/SkinnedMeshRenderer/Haï Blendshape Viewer")]
         public static void OpenEditor(MenuCommand command)
         {
             var window = Obtain();
