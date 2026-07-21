@@ -14,7 +14,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
         public bool AutoUpdateOnFocus
         {
-            get => EditorPrefs.GetBool(PrefsPrefix + nameof(AutoUpdateOnFocus), true);
+            get => EditorPrefs.GetBool(PrefsPrefix + nameof(AutoUpdateOnFocus), false);
             set => EditorPrefs.SetBool(PrefsPrefix + nameof(AutoUpdateOnFocus), value);
         }
 
