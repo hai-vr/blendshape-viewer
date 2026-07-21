@@ -1,7 +1,7 @@
 {
   "name": "dev.hai-vr.blendshape-viewer",
   "displayName": "Haï ~ Blendshape Viewer",
-  "version": "3.0.0-alpha.1",
+  "version": "3.0.0-beta.1",
   "unity": "2022.3",
   "description": "Blendshape Viewer https://docs.hai-vr.dev/docs/products/blendshape-viewer",
   "vrchatVersion" : "2022.1.1",
