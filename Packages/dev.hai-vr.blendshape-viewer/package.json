@@ -1,8 +1,8 @@
 {
   "name": "dev.hai-vr.blendshape-viewer",
   "displayName": "Haï ~ Blendshape Viewer",
-  "version": "2.1.2",
-  "unity": "2019.4",
+  "version": "3.0.0-alpha.1",
+  "unity": "2022.3",
   "description": "Blendshape Viewer https://docs.hai-vr.dev/docs/products/blendshape-viewer",
   "vrchatVersion" : "2022.1.1",
   "author" : {
@@ -12,10 +12,6 @@
     "com.unity.nuget.newtonsoft-json": "3.2.1"
   },
   "vpmDependencies": {
-    "dev.hai-vr.resilience.toolkit" : "1.0.x"
-  },
-  "legacyFolders" : {
-    "Assets\\Hai\\BlendshapeViewer" : "c250276ee4eb4ca1a97370171310afe0"
   },
   "url" : "https://docs.hai-vr.dev/docs/products/blendshape-viewer",
   "documentationUrl": "https://docs.hai-vr.dev/docs/products/blendshape-viewer",
