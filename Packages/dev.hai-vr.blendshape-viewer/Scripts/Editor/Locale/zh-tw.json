@@ -9,7 +9,7 @@
     "phrases": {
       "documentation_url": "https://docs.hai-vr.dev/zh-Hant/docs/products/blendshape-viewer",
       "show_differences": "顯示差異",
-      "show_hotspots": "顯示熱點",
+      "alt_to_show_hotspots": "顯示熱點",
       "auto_update_on_focus": "滑鼠移入時自動更新",
       "thumbnail_size": "縮略圖大小",
       "mesh": "Skinned Mesh",

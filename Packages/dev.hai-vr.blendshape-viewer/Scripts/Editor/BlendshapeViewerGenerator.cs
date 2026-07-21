@@ -6,19 +6,21 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 {
     internal class BlendshapeViewerGenerator
     {
+        private static readonly int ShaderHotspots = Shader.PropertyToID("_Hotspots");
+        private static readonly int ShaderNeutralTex = Shader.PropertyToID("_NeutralTex");
+        private static readonly int ShaderRect = Shader.PropertyToID("_Rect");
+        
         private Material _material;
         private bool _useComputeShader;
         private Camera _camera;
-        private float _overlay;
         private BlendshapeViewerDiffCompute _diffCompute;
 
-        public void Begin(float overlay)
+        public void Begin()
         {
-            _overlay = overlay;
             _useComputeShader = SystemInfo.supportsComputeShaders;
 
             _material = new Material(_useComputeShader ? Shader.Find("Hai/BlendshapeViewerRectOnly") : Shader.Find("Hai/BlendshapeViewer"));
-            _material.SetFloat("_Hotspots", _overlay);
+            
             _camera = new GameObject().AddComponent<Camera>();
 
             var sceneCamera = SceneView.lastActiveSceneView.camera;
@@ -103,17 +105,17 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             RenderTexture.active = null;
         }
 
-        public void Diff(Texture2D source, Texture2D neutralTexture, Texture2D newTexture)
+        public void Diff(Texture2D source, Texture2D neutralTexture, Texture2D newTexture, RenderTexture renderTexture, float showHotspots)
         {
-            var diff = RenderTexture.GetTemporary(newTexture.width, newTexture.height, 24);
-            _material.SetTexture("_NeutralTex", neutralTexture);
+            _material.SetFloat(ShaderHotspots, showHotspots);
+            _material.SetTexture(ShaderNeutralTex, neutralTexture);
             if (_useComputeShader)
             {
-                _material.SetVector("_Rect", _diffCompute.Compute(source, neutralTexture));
+                _material.SetVector(ShaderRect, _diffCompute.Compute(source, neutralTexture));
             }
-            Graphics.Blit(source, diff, _material);
-            RenderTextureTo(diff, newTexture);
-            RenderTexture.ReleaseTemporary(diff);
+            Graphics.Blit(source, renderTexture, _material);
+            RenderTextureTo(renderTexture, newTexture);
+            RenderTexture.ReleaseTemporary(renderTexture);
         }
     }
 }

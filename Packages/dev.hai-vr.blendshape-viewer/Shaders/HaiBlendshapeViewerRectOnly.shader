@@ -70,7 +70,7 @@
                 if (_Hotspots > 0.01) {
                     fixed3 neutral = tex2D(_NeutralTex, i.uv).xyz;
                     fixed3 morphed = tex2D(_MainTex, i.uv).xyz;
-                    col = lerp(col, length(neutral - morphed) * float4(1, 0, 0, 1), _Hotspots);
+                    col = lerp(col, length(neutral - morphed) * float4(1, 1, 0, 1), _Hotspots);
                 }
                 return col;
             }

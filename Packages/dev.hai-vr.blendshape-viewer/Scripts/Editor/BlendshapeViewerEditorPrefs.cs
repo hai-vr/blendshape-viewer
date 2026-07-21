@@ -24,10 +24,10 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             set => EditorPrefs.SetInt(PrefsPrefix + nameof(ThumbnailSize), value);
         }
 
-        public bool ShowHotspots
+        public bool AltToShowHotspots
         {
-            get => EditorPrefs.GetBool(PrefsPrefix + nameof(ShowHotspots), false);
-            set => EditorPrefs.SetBool(PrefsPrefix + nameof(ShowHotspots), value);
+            get => EditorPrefs.GetBool(PrefsPrefix + nameof(AltToShowHotspots), false);
+            set => EditorPrefs.SetBool(PrefsPrefix + nameof(AltToShowHotspots), value);
         }
     }
 }
