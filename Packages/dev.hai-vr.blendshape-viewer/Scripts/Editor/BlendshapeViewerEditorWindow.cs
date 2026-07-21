@@ -1,22 +1,52 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Hai.BlendshapeViewer.Scripts.Editor
 {
     public class BlendshapeViewerEditorWindow : EditorWindow
     {
+        private static class Phrases
+        {
+            public const string documentation_url = nameof(documentation_url);
+            public const string auto_update_on_focus = nameof(auto_update_on_focus);
+            public const string copy_to_clipboard = nameof(copy_to_clipboard);
+            public const string mesh = nameof(mesh);
+            public const string rendering = nameof(rendering);
+            public const string rendering_progress = nameof(rendering_progress);
+            public const string search = nameof(search);
+            public const string show_differences = nameof(show_differences);
+            public const string show_hotspots = nameof(show_hotspots);
+            public const string thumbnail_size = nameof(thumbnail_size);
+            public const string update = nameof(update);
+            public const string use_compute_shader = nameof(use_compute_shader);
+        }
+
         private const int MinWidth = 150;
         private const int MaxSearchQueryLength = 100;
         
         public SkinnedMeshRenderer skinnedMesh;
         private readonly BlendshapeViewerEditorPrefs _editorPrefs = new();
+        
+        private static HaiEFLoc localize
+        {
+            get
+            {
+                _localize ??= NewLoc();
+                return _localize;
+            }
+        }
+        private static HaiEFLoc _localize;
+        private static HaiEFLoc NewLoc() => new("dev.hai-vr.blendshape-viewer", "Packages/dev.hai-vr.blendshape-viewer/Scripts/Editor/Locale");
+        
         public Texture2D[] tex2ds = new Texture2D[0];
 
         private string _search = "";
         
-        private Vector2 _scrollPos;
         private SkinnedMeshRenderer _generatedFor;
         private int _generatedSize;
 
@@ -27,129 +57,375 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private float _generatedNearClipPlane;
         private float _generatedFarClipPlane;
         private float _generatedOrthographicSize;
-        private Rect m_area;
         
-        private const string SearchLabel = "Search";
+        private const string SearchLabelText = "Search";
+
+        private VisualElement _root;
+        private VisualElement _container;
+        private VisualElement _grid;
+        private Button _updateButton;
+        private List<BlendshapeElement> _elements = new List<BlendshapeElement>();
+
+        private class BlendshapeElement
+        {
+            public VisualElement Root;
+            public Image Image;
+            public TextField TextField;
+            public Slider Slider;
+            public FloatField SliderValueField;
+            public int Index;
+            public string Name;
+
+            public void SetVisible(bool visible)
+            {
+                Root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
 
         public BlendshapeViewerEditorWindow()
         {
-            titleContent = new GUIContent("BlendshapeViewer");
+            titleContent = new GUIContent("Blendshape Viewer");
+        }
+
+        public void CreateGUI()
+        {
+            localize.RefreshIfNecessary();
+            _root = rootVisualElement;
+            var serializedObject = new SerializedObject(this);
+
+            var topSettings = new VisualElement { style = { flexDirection = FlexDirection.Column, flexShrink = 0 } };
+            _root.Add(topSettings);
+
+            var meshRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
+            topSettings.Add(meshRow);
+
+            var meshField = new PropertyField(serializedObject.FindProperty(nameof(skinnedMesh)), localize.Text(Phrases.mesh))
+            {
+                style = { flexGrow = 1 }
+            };
+            meshField.RegisterValueChangeCallback(evt => {
+                if (_root != null)
+                {
+                    ReconstructGrid();
+                }
+            });
+            meshRow.Add(meshField);
+
+            var helpButton = new Button(() =>
+            {
+                var documentationUrl__unsafe = localize.Text(Phrases.documentation_url);
+                if (documentationUrl__unsafe.StartsWith("https://docs.hai-vr.dev/"))
+                {
+                    Application.OpenURL(documentationUrl__unsafe);
+                }
+                else
+                {
+                    Application.OpenURL("https://docs.hai-vr.dev/docs/products/blendshape-viewer");
+                }
+            })
+            {
+                style =
+                {
+                    width = 16,
+                    height = 16,
+                    backgroundColor = Color.clear,
+                    borderBottomWidth = 0,
+                    borderLeftWidth = 0,
+                    borderRightWidth = 0,
+                    borderTopWidth = 0,
+                    paddingBottom = 0,
+                    paddingLeft = 0,
+                    paddingRight = 0,
+                    paddingTop = 0
+                }
+            };
+            helpButton.Add(new Image
+            {
+                image = EditorGUIUtility.IconContent("_Help").image,
+                scaleMode = ScaleMode.ScaleToFit,
+                style =
+                {
+                    flexGrow = 1,
+                    width = new Length(100, LengthUnit.Percent),
+                    height = new Length(100, LengthUnit.Percent)
+                }
+            });
+            helpButton.AddToClassList("unity-button--quiet");
+            meshRow.Add(helpButton);
+
+            var togglesRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            var showDifferencesToggle = new Toggle(localize.Text(Phrases.show_differences)) { value = _editorPrefs.ShowDifferences, style = { flexGrow = 1, flexBasis = 0 } };
+            showDifferencesToggle.RegisterValueChangedCallback(evt => {
+                _editorPrefs.ShowDifferences = evt.newValue;
+                ReconstructGrid();
+            });
+            togglesRow.Add(showDifferencesToggle);
+            var showHotspotsToggle = new Toggle(localize.Text(Phrases.show_hotspots)) { value = _editorPrefs.ShowHotspots, style = { flexGrow = 1, flexBasis = 0 } };
+            showHotspotsToggle.RegisterValueChangedCallback(evt => {
+                _editorPrefs.ShowHotspots = evt.newValue;
+                ReconstructGrid();
+            });
+            togglesRow.Add(showHotspotsToggle);
+            
+            // Toggle visibility of hotspots based on showDifferences
+            showHotspotsToggle.SetEnabled(_editorPrefs.ShowDifferences);
+            showDifferencesToggle.RegisterValueChangedCallback(evt => {
+                showHotspotsToggle.SetEnabled(evt.newValue);
+            });
+
+            var autoUpdateToggle = new Toggle(localize.Text(Phrases.auto_update_on_focus)) { value = _editorPrefs.AutoUpdateOnFocus, style = { flexGrow = 1, flexBasis = 0 } };
+            autoUpdateToggle.RegisterValueChangedCallback(evt => _editorPrefs.AutoUpdateOnFocus = evt.newValue);
+            togglesRow.Add(autoUpdateToggle);
+            if (SystemInfo.supportsComputeShaders)
+            {
+                var useComputeShaderToggle = new Toggle(localize.Text(Phrases.use_compute_shader)) { value = _editorPrefs.UseComputeShader, style = { flexGrow = 1, flexBasis = 0 } };
+                useComputeShaderToggle.RegisterValueChangedCallback(evt => _editorPrefs.UseComputeShader = evt.newValue);
+                togglesRow.Add(useComputeShaderToggle);
+            }
+            topSettings.Add(togglesRow);
+
+            var sizeSlider = new SliderInt(localize.Text(Phrases.thumbnail_size), 100, 300) { value = _editorPrefs.ThumbnailSize };
+            sizeSlider.RegisterValueChangedCallback(evt => {
+                _editorPrefs.ThumbnailSize = evt.newValue;
+                UpdateLayout();
+            });
+            topSettings.Add(sizeSlider);
+
+            _updateButton = new Button(() => TryExecuteUpdate()) { text = localize.Text(Phrases.update) };
+            _updateButton.SetEnabled(skinnedMesh != null && !AnimationMode.InAnimationMode());
+            topSettings.Add(_updateButton);
+
+            var controlsRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 5, marginBottom = 5 } };
+            
+            controlsRow.Add(new Label(localize.Text(Phrases.search)) { style = { width = 50 } });
+            var searchField = new TextField { style = { flexGrow = 1 } };
+            searchField.value = _search;
+            searchField.RegisterValueChangedCallback(evt =>
+            {
+                _search = evt.newValue;
+                if (_search.Length > MaxSearchQueryLength)
+                {
+                    _search = _search.Substring(0, MaxSearchQueryLength);
+                    searchField.SetValueWithoutNotify(_search);
+                }
+                UpdateFiltering();
+            });
+            controlsRow.Add(searchField);
+            topSettings.Add(controlsRow);
+
+            _container = new ScrollView(ScrollViewMode.Vertical);
+            _container.style.flexGrow = 1;
+            _root.Add(_container);
+
+            _grid = new VisualElement();
+            _grid.style.flexDirection = FlexDirection.Row;
+            _grid.style.flexWrap = Wrap.Wrap;
+            _grid.style.justifyContent = Justify.Center;
+            _container.Add(_grid);
+
+            var footer = localize.CreateSelectorElement(() =>
+            {
+                _localize = NewLoc();
+                _root.Clear();
+                CreateGUI();
+                return _localize;
+            });
+            footer.style.flexShrink = 0;
+            _root.Add(footer);
+
+            _root.RegisterCallback<GeometryChangedEvent>(evt =>
+            {
+                if (evt.target == _root)
+                {
+                    UpdateLayout();
+                }
+            });
+            
+            _root.Bind(serializedObject);
+
+            if (skinnedMesh != null && _generatedFor == skinnedMesh)
+            {
+                ReconstructGrid();
+            }
+        }
+
+        private void UpdateFiltering()
+        {
+            var hasSearch = !string.IsNullOrEmpty(_search);
+            foreach (var element in _elements)
+            {
+                element.SetVisible(!hasSearch || IsMatch(element.Name));
+            }
+        }
+
+        private void UpdateLayout()
+        {
+            if (_grid == null) return;
+            
+            var width = Mathf.Max(_editorPrefs.ThumbnailSize, MinWidth);
+            foreach (var element in _elements)
+            {
+                element.Root.style.width = width;
+                element.Image.style.width = width;
+                element.Image.style.height = _editorPrefs.ThumbnailSize;
+                element.TextField.style.width = width - 25;
+                element.Slider.style.flexGrow = 1;
+                element.Slider.style.marginLeft = 0;
+                element.Slider.style.marginRight = 0;
+                element.SliderValueField.style.width = 35;
+            }
+        }
+
+        private void ReconstructGrid()
+        {
+            _grid.Clear();
+            _elements.Clear();
+
+            if (skinnedMesh == null || skinnedMesh.sharedMesh == null) return;
+
+            var total = skinnedMesh.sharedMesh.blendShapeCount;
+            var serializedSkinnedMesh = new SerializedObject(skinnedMesh);
+            var weightsProp = serializedSkinnedMesh.FindProperty("m_BlendShapeWeights");
+            var highlightColor = EditorGUIUtility.isProSkin ? new Color(0.92f, 0.62f, 0.25f) : new Color(0.74f, 0.47f, 0.1f);
+            var clipboardIcon = EditorGUIUtility.IconContent("Clipboard").image as Texture2D;
+
+            for (var i = 0; i < total; i++)
+            {
+                var index = i;
+                var blendShapeName = skinnedMesh.sharedMesh.GetBlendShapeName(index);
+                var weightProp = weightsProp.GetArrayElementAtIndex(index);
+
+                var itemRoot = new VisualElement { style = { 
+                    marginTop = 5,
+                    marginBottom = 5,
+                    marginLeft = 5,
+                    marginRight = 5,
+                    flexShrink = 0,
+                    flexGrow = 0
+                } };
+                
+                var texture2D = index < tex2ds.Length ? tex2ds[index] : null;
+                var image = new Image { image = texture2D };
+                itemRoot.Add(image);
+
+                var titleRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+                var textField = new TextField { value = blendShapeName, isReadOnly = true };
+                textField.style.marginLeft = 0;
+                textField.style.marginRight = 0;
+                textField.style.marginTop = 0;
+                textField.style.marginBottom = 0;
+                textField.style.paddingLeft = 0;
+                textField.style.paddingRight = 0;
+                textField.style.paddingTop = 0;
+                textField.style.paddingBottom = 0;
+                textField.ElementAt(0).style.backgroundColor = Color.clear;
+                textField.ElementAt(0).style.borderBottomWidth = 0;
+                textField.ElementAt(0).style.borderLeftWidth = 0;
+                textField.ElementAt(0).style.borderRightWidth = 0;
+                textField.ElementAt(0).style.borderTopWidth = 0;
+                textField.ElementAt(0).style.paddingLeft = 0;
+                textField.ElementAt(0).style.marginLeft = 0;
+                
+                Action updateHighlight = () =>
+                {
+                    var isNonZero = weightProp.floatValue > 0f;
+                    textField.style.unityFontStyleAndWeight = isNonZero ? FontStyle.Bold : FontStyle.Normal;
+                    textField.style.color = isNonZero ? highlightColor : StyleKeyword.Null;
+                };
+                
+                itemRoot.TrackPropertyValue(weightProp, prop => updateHighlight());
+                updateHighlight();
+
+                titleRow.Add(textField);
+
+                var copyButton = new Button(() => GUIUtility.systemCopyBuffer = blendShapeName)
+                {
+                    tooltip = localize.Format(Phrases.copy_to_clipboard, blendShapeName),
+                    style =
+                    {
+                        width = 25,
+                        paddingBottom = 0, paddingLeft = 0, paddingRight = 0, paddingTop = 0,
+                        marginLeft = 0, marginRight = 0, marginTop = 0, marginBottom = 0
+                    }
+                };
+                copyButton.Add(new Image
+                {
+                    image = clipboardIcon,
+                    scaleMode = ScaleMode.ScaleToFit,
+                    style =
+                    {
+                        flexGrow = 1,
+                        width = new Length(100, LengthUnit.Percent),
+                        height = new Length(100, LengthUnit.Percent)
+                    }
+                });
+                titleRow.Add(copyButton);
+                itemRoot.Add(titleRow);
+
+                var sliderRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+                var slider = new Slider(0, 100)
+                {
+                    style =
+                    {
+                        marginLeft = 0,
+                        marginRight = 0,
+                        flexGrow = 1
+                    }
+                };
+                slider.BindProperty(weightProp);
+                sliderRow.Add(slider);
+
+                var sliderValueField = new FloatField
+                {
+                    style =
+                    {
+                        width = 35,
+                        marginLeft = 2
+                    }
+                };
+                sliderValueField.BindProperty(weightProp);
+                sliderRow.Add(sliderValueField);
+                
+                itemRoot.Add(sliderRow);
+
+                _grid.Add(itemRoot);
+                var element = new BlendshapeElement
+                {
+                    Root = itemRoot,
+                    Image = image,
+                    TextField = textField,
+                    Slider = slider,
+                    SliderValueField = sliderValueField,
+                    Index = index,
+                    Name = blendShapeName
+                };
+                _elements.Add(element);
+            }
+            
+            UpdateLayout();
+            UpdateFiltering();
         }
 
         private void OnFocus()
         {
-            if (!autoUpdateOnFocus) return;
+            UpdateUpdateButtonEnabledState();
+            if (!_editorPrefs.AutoUpdateOnFocus) return;
             if (skinnedMesh == null) return;
             if (!HasGenerationParamsChanged()) return;
 
             TryExecuteUpdate();
         }
 
-        private void OnGUI()
+        private void Update()
         {
-            var serializedObject = new SerializedObject(this);
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(skinnedMesh)));
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(showDifferences)));
-            if (showDifferences)
+            UpdateUpdateButtonEnabledState();
+        }
+
+        private void UpdateUpdateButtonEnabledState()
+        {
+            if (_updateButton != null)
             {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(showHotspots)));
-            }
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(autoUpdateOnFocus)));
-            if (SystemInfo.supportsComputeShaders)
-            {
-                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(useComputeShader)));
-            }
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.IntSlider(serializedObject.FindProperty(nameof(thumbnailSize)), 100, 300);
-
-            
-            EditorGUILayout.BeginHorizontal();
-            EditorGUI.BeginDisabledGroup(skinnedMesh == null || AnimationMode.InAnimationMode());
-            if (GUILayout.Button("Update"))
-            {
-                TryExecuteUpdate();
-            }
-            EditorGUI.EndDisabledGroup();
-            EditorGUILayout.LabelField("", GUILayout.Width(25));
-            EditorGUILayout.LabelField(SearchLabel, GUILayout.Width(50));
-            _search = EditorGUILayout.TextField(_search, GUILayout.Width(200));
-            if (_search.Length > MaxSearchQueryLength)
-            {
-                // Try to prevent the editor from hanging up if the user mistakenly pastes a page long of unrelated content (it happened)
-                _search = _search.Substring(0, MaxSearchQueryLength);
-            }
-            EditorGUILayout.EndHorizontal();
-            
-            serializedObject.ApplyModifiedProperties();
-
-            var width = Mathf.Max(_generatedSize, MinWidth);
-            if (skinnedMesh != null && skinnedMesh.sharedMesh != null && skinnedMesh.sharedMesh.blendShapeCount > 0 && _generatedFor == skinnedMesh)
-            {
-                var total = skinnedMesh.sharedMesh.blendShapeCount;
-                var serializedSkinnedMesh = new SerializedObject(skinnedMesh);
-
-                _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Height(position.height - EditorGUIUtility.singleLineHeight * 7));
-                
-                var hasSearch = !string.IsNullOrEmpty(_search);
-
-                var mod = Mathf.Max(1, (int)position.width / (width + 15));
-                var highlightColor = EditorGUIUtility.isProSkin ? new Color(0.92f, 0.62f, 0.25f) : new Color(0.74f, 0.47f, 0.1f);
-                var shown = 0;
-                var clipboard = EditorGUIUtility.IconContent("Clipboard").image;
-                var createdSpaceFirst = false;
-                for (var index = 0; index < total; index++)
-                {
-                    var blendShapeName = skinnedMesh.sharedMesh.GetBlendShapeName(index);
-                    if (hasSearch && !IsMatch(blendShapeName))
-                    {
-                        if (index == total - 1 && createdSpaceFirst)
-                        {
-                            GUILayout.FlexibleSpace();
-                            EditorGUILayout.EndHorizontal();
-                        }
-                        continue;
-                    }
-                    
-                    var texture2D = index < tex2ds.Length ? tex2ds[index] : null;
-                    if (shown % mod == 0)
-                    {
-                        EditorGUILayout.BeginHorizontal();
-                        GUILayout.FlexibleSpace();
-                        createdSpaceFirst = true;
-                    }
-
-                    EditorGUILayout.BeginVertical();
-                    GUILayout.Box(texture2D);
-                    var weight = serializedSkinnedMesh.FindProperty("m_BlendShapeWeights").GetArrayElementAtIndex(index);
-                    var isNonZero = weight.floatValue > 0f;
-                    EditorGUILayout.BeginHorizontal();
-                    Colored(isNonZero, highlightColor, () =>
-                    {
-                        EditorGUILayout.TextField(blendShapeName, isNonZero ? EditorStyles.boldLabel : EditorStyles.label, GUILayout.Width(width - 25));
-                    });
-                    if (GUILayout.Button(new GUIContent(clipboard, $"Copy {blendShapeName} to Clipboard"), GUILayout.Width(25)))
-                    {
-                        GUIUtility.systemCopyBuffer = blendShapeName;
-                    }
-                    EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.Slider(weight, 0f, 100f, GUIContent.none, GUILayout.Width(width));
-                    EditorGUILayout.EndVertical();
-
-                    if (((shown + 1) % mod == 0 || index == total - 1) && createdSpaceFirst)
-                    {
-                        GUILayout.FlexibleSpace();
-                        EditorGUILayout.EndHorizontal();
-                        createdSpaceFirst = false;
-                    }
-
-                    shown++;
-                }
-
-                GUILayout.EndScrollView();
-                serializedSkinnedMesh.ApplyModifiedProperties();
+                _updateButton.SetEnabled(skinnedMesh != null && !AnimationMode.InAnimationMode());
             }
         }
 
@@ -159,12 +435,17 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
             Generate();
             SaveGenerationParams();
+            
+            if (_root != null)
+            {
+                ReconstructGrid();
+            }
         }
 
         private void SaveGenerationParams()
         {
             _generatedFor = skinnedMesh;
-            _generatedSize = thumbnailSize;
+            _generatedSize = _editorPrefs.ThumbnailSize;
 
             var sceneCamera = SceneView.lastActiveSceneView.camera;
             _generatedTransformPosition = sceneCamera.transform.position;
@@ -179,6 +460,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
         private bool HasGenerationParamsChanged()
         {
+            if (SceneView.lastActiveSceneView == null || SceneView.lastActiveSceneView.camera == null) return false;
             var sceneCamera = SceneView.lastActiveSceneView.camera;
             if (_generatedTransformPosition != sceneCamera.transform.position) return true;
             if (_generatedTransformRotation != sceneCamera.transform.rotation) return true;
@@ -201,9 +483,9 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var module = new BlendshapeViewerGenerator();
             try
             {
-                module.Begin(skinnedMesh, showHotspots ? 0.95f : 0, useComputeShader);
+                module.Begin(skinnedMesh, _editorPrefs.ShowHotspots ? 0.95f : 0, _editorPrefs.UseComputeShader);
                 Texture2D neutralTexture = null;
-                if (showDifferences)
+                if (_editorPrefs.ShowDifferences)
                 {
                     neutralTexture = NewTexture();
                     module.Render(EmptyClip(), neutralTexture);
@@ -244,7 +526,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                 tex2ds = results
                     .Select((clip, i) =>
                     {
-                        if (i % 10 == 0) EditorUtility.DisplayProgressBar("Rendering", $"Rendering ({i} / {results.Length})", 1f * i / results.Length);
+                        if (i % 10 == 0) EditorUtility.DisplayProgressBar(localize.Text(Phrases.rendering), localize.Format(Phrases.rendering_progress, i, results.Length), 1f * i / results.Length);
 
                         var currentWeight = skinnedMesh.GetBlendShapeWeight(i);
                         var isAlreadyAnimatedTo100 = Math.Abs(currentWeight - 100f) < 0.001f;
@@ -256,7 +538,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                             // Workaround a weird bug where the first blendshape is always incorrectly rendered
                             module.Render(clip, result);
                         }
-                        if (showDifferences)
+                        if (_editorPrefs.ShowDifferences)
                         {
                             if (isAlreadyAnimatedTo100)
                             {
@@ -278,20 +560,6 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
-        private static void Colored(bool isActive, Color bgColor, Action inside)
-        {
-            var col = GUI.contentColor;
-            try
-            {
-                if (isActive) GUI.contentColor = bgColor;
-                inside();
-            }
-            finally
-            {
-                GUI.contentColor = col;
-            }
-        }
-
         private static AnimationClip EmptyClip()
         {
             var emptyClip = new AnimationClip();
@@ -310,7 +578,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
         private Texture2D NewTexture()
         {
-            var newTexture = new Texture2D(Mathf.Max(thumbnailSize, MinWidth), thumbnailSize, TextureFormat.RGB24, false);
+            var newTexture = new Texture2D(Mathf.Max(_editorPrefs.ThumbnailSize, MinWidth), _editorPrefs.ThumbnailSize, TextureFormat.RGB24, false);
             newTexture.wrapMode = TextureWrapMode.Clamp;
             return newTexture;
         }
@@ -321,7 +589,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             return _search.ToLowerInvariant().Split(' ').All(needle => propertyName.Contains(needle));
         }
 
-        [MenuItem("Window/Haï/BlendshapeViewer")]
+        [MenuItem("Window/Haï/Blendshape Viewer")]
         public static void ShowWindow()
         {
             Obtain().Show();
@@ -339,7 +607,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private static BlendshapeViewerEditorWindow Obtain()
         {
             var editor = GetWindow<BlendshapeViewerEditorWindow>(false, null, false);
-            editor.titleContent = new GUIContent("BlendshapeViewer");
+            editor.titleContent = new GUIContent("Blendshape Viewer");
             return editor;
         }
     }
