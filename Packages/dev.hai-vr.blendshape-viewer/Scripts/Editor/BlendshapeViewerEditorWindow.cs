@@ -780,7 +780,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
         private static RenderTexture ObtainTemporaryRenderTexture(Texture2D x)
         {
-            var result = RenderTexture.GetTemporary(x.width, x.height, 24, RenderTextureFormat.Default, RenderTextureReadWrite.Default, 8);
+            var result = RenderTexture.GetTemporary(x.width, x.height, 24, RenderTextureFormat.Default, RenderTextureReadWrite.Default, 4);
             result.wrapMode = TextureWrapMode.Clamp;
             return result;
         }
