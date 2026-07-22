@@ -26,7 +26,12 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
         public Vector4 PerformCompute(Texture2D source, Texture2D neutralTexture)
         {
-            return _diffCompute.Compute(source, neutralTexture);
+            if (_useComputeShader)
+            {
+                return _diffCompute.Compute(source, neutralTexture);
+            }
+            
+            return Vector4.zero;
         }
 
         public void Diff(Texture2D source, Texture2D neutralTexture, Texture2D newTexture, RenderTexture renderTexture, float showHotspots, Vector4 performCompute)
