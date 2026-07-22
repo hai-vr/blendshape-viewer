@@ -32,7 +32,7 @@ using Button = UnityEngine.UIElements.Button;
 
 namespace Hai.BlendshapeViewer.Scripts.Editor
 {
-    // HEFLoc V0.1.9007
+    // HEFLoc V0.1.9008
     //
     /// <summary>
     /// A self-contained localization tool, which will be copied into multiple of my packages.
@@ -198,7 +198,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             return string.Format(DoLocalize($"phrases.{localizationKey}"), format);
         }
 
-        private string LocalizeEnumName(string enumType, string enumValue)
+        public string LocalizeEnumName(string enumType, string enumValue)
         {
             return DoLocalize($"enums.{enumType}.{enumValue}");
         }

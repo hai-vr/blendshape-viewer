@@ -9,7 +9,6 @@
     "phrases": {
       "documentation_url": "https://docs.hai-vr.dev/zh-Hans/docs/products/blendshape-viewer",
       "show_differences": "显示差异",
-      "alt_to_show_hotspots": "按住 ALT 显示热点",
       "auto_update_on_focus": "鼠标移入时自动更新",
       "thumbnail_size": "缩略图大小",
       "mesh": "Skinned Mesh",
@@ -20,6 +19,12 @@
       "rendering_progress": "正在渲染 ({0} / {1})"
     },
     "enums": {
+      "Hai.BlendshapeViewer.Scripts.Editor.AltRole": {
+        "DoNothing": "ALT 不执行任何操作",
+        "AltToShowOriginal": "ALT 显示原图",
+        "AltToShowHotspots": "ALT 显示热点",
+        "ShowHotspotsByDefault": "默认显示热点"
+      }
     }
   }
 }

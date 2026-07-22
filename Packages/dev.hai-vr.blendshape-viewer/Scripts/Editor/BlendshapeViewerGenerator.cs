@@ -24,13 +24,18 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
-        public void Diff(Texture2D source, Texture2D neutralTexture, Texture2D newTexture, RenderTexture renderTexture, float showHotspots)
+        public Vector4 PerformCompute(Texture2D source, Texture2D neutralTexture)
+        {
+            return _diffCompute.Compute(source, neutralTexture);
+        }
+
+        public void Diff(Texture2D source, Texture2D neutralTexture, Texture2D newTexture, RenderTexture renderTexture, float showHotspots, Vector4 performCompute)
         {
             _material.SetFloat(ShaderHotspots, showHotspots);
             _material.SetTexture(ShaderNeutralTex, neutralTexture);
             if (_useComputeShader)
             {
-                _material.SetVector(ShaderRect, _diffCompute.Compute(source, neutralTexture));
+                _material.SetVector(ShaderRect, performCompute);
             }
             Graphics.Blit(source, renderTexture, _material);
             BlendshapeViewerGenerator.RenderTextureTo(renderTexture, newTexture);
@@ -71,7 +76,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             Object.DestroyImmediate(_camera.gameObject);
         }
 
-        public void Render(BlendshapeViewerEditorWindow.BlendshapeState blendshapeToRender, Texture2D element, RenderTexture rt)
+        public void Render(BlendshapeViewerEditorWindow.BlendshapeState blendshapeToRender, Texture2D element, RenderTexture renderTexture)
         {
             try
             {
@@ -83,13 +88,15 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                     blendshapeToRender.skinnedMesh.enabled = true; //
                 }
                 Profiler.EndSample();
+                
+                ClearRenderTexture(renderTexture);
 
                 Profiler.BeginSample("BlendshapeViewer.RenderCamera");
-                RenderCamera(rt, _camera);
+                RenderCamera(renderTexture, _camera);
                 Profiler.EndSample();
                 
                 Profiler.BeginSample("BlendshapeViewer.RenderTextureTo");
-                RenderTextureTo(rt, element);
+                RenderTextureTo(renderTexture, element);
                 Profiler.EndSample();
             }
             finally
@@ -124,6 +131,13 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             RenderTexture.active = renderTexture;
             texture2D.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
             texture2D.Apply();
+            RenderTexture.active = null;
+        }
+
+        internal static void ClearRenderTexture(RenderTexture renderTexture)
+        {
+            RenderTexture.active = renderTexture;
+            GL.Clear(true, true, Color.black);
             RenderTexture.active = null;
         }
     }

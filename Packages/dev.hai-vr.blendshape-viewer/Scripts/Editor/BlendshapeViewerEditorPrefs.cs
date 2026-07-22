@@ -24,10 +24,18 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             set => EditorPrefs.SetInt(PrefsPrefix + nameof(ThumbnailSize), value);
         }
 
-        public bool AltToShowHotspots
+        public AltRole AltAction
         {
-            get => EditorPrefs.GetBool(PrefsPrefix + nameof(AltToShowHotspots), false);
-            set => EditorPrefs.SetBool(PrefsPrefix + nameof(AltToShowHotspots), value);
+            get => (AltRole)EditorPrefs.GetInt(PrefsPrefix + nameof(AltAction), (int)AltRole.AltToShowOriginal);
+            set => EditorPrefs.SetInt(PrefsPrefix + nameof(AltAction), (int)value);
         }
+    }
+
+    internal enum AltRole
+    {
+        DoNothing = 0,
+        AltToShowOriginal = 1,
+        AltToShowHotspots = 2,
+        ShowHotspotsByDefault = 3,
     }
 }

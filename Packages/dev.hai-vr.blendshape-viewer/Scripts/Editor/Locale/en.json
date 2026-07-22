@@ -9,7 +9,6 @@
     "phrases": {
       "documentation_url": "https://docs.hai-vr.dev/docs/products/blendshape-viewer",
       "show_differences": "Show Differences",
-      "alt_to_show_hotspots": "ALT to Show Hotspots",
       "auto_update_on_focus": "Auto Update On Focus",
       "thumbnail_size": "Thumbnail Size",
       "mesh": "Skinned Mesh",
@@ -20,6 +19,12 @@
       "rendering_progress": "Rendering ({0} / {1})"
     },
     "enums": {
+      "Hai.BlendshapeViewer.Scripts.Editor.AltRole": {
+        "DoNothing": "ALT does nothing",
+        "AltToShowOriginal": "ALT shows original",
+        "AltToShowHotspots": "ALT shows hotspots",
+        "ShowHotspotsByDefault": "Show hotspots by default"
+      }
     }
   }
 }

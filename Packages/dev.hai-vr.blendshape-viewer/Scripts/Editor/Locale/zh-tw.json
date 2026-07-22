@@ -9,7 +9,6 @@
     "phrases": {
       "documentation_url": "https://docs.hai-vr.dev/zh-Hant/docs/products/blendshape-viewer",
       "show_differences": "顯示差異",
-      "alt_to_show_hotspots": "按住 ALT 顯示熱點",
       "auto_update_on_focus": "滑鼠移入時自動更新",
       "thumbnail_size": "縮略圖大小",
       "mesh": "Skinned Mesh",
@@ -20,6 +19,12 @@
       "rendering_progress": "正在渲染 ({0} / {1})"
     },
     "enums": {
+      "Hai.BlendshapeViewer.Scripts.Editor.AltRole": {
+        "DoNothing": "ALT 不執行任何操作",
+        "AltToShowOriginal": "ALT 顯示原圖",
+        "AltToShowHotspots": "ALT 顯示熱點",
+        "ShowHotspotsByDefault": "默認顯示熱點"
+      }
     }
   }
 }

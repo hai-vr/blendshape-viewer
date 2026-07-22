@@ -26,7 +26,6 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             public const string rendering_progress = nameof(rendering_progress);
             public const string search = nameof(search);
             public const string show_differences = nameof(show_differences);
-            public const string alt_to_show_hotspots = nameof(alt_to_show_hotspots);
             public const string thumbnail_size = nameof(thumbnail_size);
             public const string update = nameof(update);
         }
@@ -67,7 +66,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private readonly List<BlendshapeElement> _elements = new();
         private readonly List<Image> _images = new();
         private bool _isAlt;
-        private bool _altToShowHotspotsChanged;
+        private bool _altActionChanged;
         private Texture2D _neutralTexture;
         private int _nextDifferential;
         private bool _isRunningDifferentials;
@@ -97,12 +96,30 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private void OnGUI()
         {
             var alt = (Event.current.modifiers & EventModifiers.Alt) != 0;
-            if (_isAlt != alt || _altToShowHotspotsChanged)
+            if (_isAlt != alt || _altActionChanged)
             {
                 _isAlt = alt;
-                _altToShowHotspotsChanged = false;
+                _altActionChanged = false;
                 
-                var shouldShowHotspots = _editorPrefs.ShowDifferences && (_isAlt ^ _editorPrefs.AltToShowHotspots);
+                var shouldShowHotspots = false;
+                if (_editorPrefs.ShowDifferences)
+                {
+                    switch (_editorPrefs.AltAction)
+                    {
+                        case AltRole.DoNothing:
+                            break;
+                        case AltRole.AltToShowOriginal:
+                        case AltRole.AltToShowHotspots:
+                            shouldShowHotspots = _isAlt;
+                            break;
+                        case AltRole.ShowHotspotsByDefault:
+                            shouldShowHotspots = !_isAlt;
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                }
+                
                 for (var index = 0; index < _images.Count; index++)
                 {
                     var image = _images[index];
@@ -186,25 +203,45 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var showDifferencesToggle = new Toggle(localize.Text(Phrases.show_differences)) { value = _editorPrefs.ShowDifferences, style = { flexGrow = 1, flexBasis = 0 } };
             showDifferencesToggle.RegisterValueChangedCallback(evt => {
                 _editorPrefs.ShowDifferences = evt.newValue;
-                ReconstructGrid();
             });
             togglesRow.Add(showDifferencesToggle);
-            var altToShowHotspotsToggle = new Toggle(localize.Text(Phrases.alt_to_show_hotspots)) { value = _editorPrefs.AltToShowHotspots, style = { flexGrow = 1, flexBasis = 0 } };
-            altToShowHotspotsToggle.RegisterValueChangedCallback(evt => {
-                _editorPrefs.AltToShowHotspots = evt.newValue;
-                _altToShowHotspotsChanged = true;
-            });
-            togglesRow.Add(altToShowHotspotsToggle);
-            
-            // Toggle visibility of hotspots based on showDifferences
-            altToShowHotspotsToggle.SetEnabled(_editorPrefs.ShowDifferences);
-            showDifferencesToggle.RegisterValueChangedCallback(evt => {
-                altToShowHotspotsToggle.SetEnabled(evt.newValue);
-            });
 
             var autoUpdateToggle = new Toggle(localize.Text(Phrases.auto_update_on_focus)) { value = _editorPrefs.AutoUpdateOnFocus, style = { flexGrow = 1, flexBasis = 0 } };
             autoUpdateToggle.RegisterValueChangedCallback(evt => _editorPrefs.AutoUpdateOnFocus = evt.newValue);
             togglesRow.Add(autoUpdateToggle);
+
+            var altActionField = new PopupField<AltRole>(
+                null,
+                ((AltRole[])Enum.GetValues(typeof(AltRole))).ToList(),
+                _editorPrefs.AltAction,
+                role => localize.LocalizeEnumName(typeof(AltRole).FullName, role.ToString()),
+                role => localize.LocalizeEnumName(typeof(AltRole).FullName, role.ToString())
+            )
+            {
+                style = { flexGrow = 1, flexBasis = 0 }
+            };
+
+            altActionField.RegisterValueChangedCallback(evt => {
+                _editorPrefs.AltAction = evt.newValue;
+                _altActionChanged = true;
+                if (evt.newValue != AltRole.DoNothing)
+                {
+                    var isNoOp = evt.previousValue == AltRole.AltToShowHotspots && evt.newValue == AltRole.ShowHotspotsByDefault
+                        || evt.previousValue == AltRole.ShowHotspotsByDefault && evt.newValue == AltRole.AltToShowHotspots;
+                    if (!isNoOp)
+                    {
+                        ConsiderRescheduling();
+                    }
+                }
+            });
+            togglesRow.Add(altActionField);
+            
+            // Toggle visibility of hotspots based on showDifferences
+            altActionField.SetEnabled(_editorPrefs.ShowDifferences);
+            showDifferencesToggle.RegisterValueChangedCallback(evt => {
+                altActionField.SetEnabled(evt.newValue);
+            });
+            
             topSettings.Add(togglesRow);
 
             var sizeSlider = new SliderInt(localize.Text(Phrases.thumbnail_size), 100, 300) { value = _editorPrefs.ThumbnailSize };
@@ -328,7 +365,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                     flexGrow = 0
                 } };
                 
-                var texture2D = index < tex2ds.Length ? tex2ds[index].general : null;
+                var texture2D = index < tex2ds.Length ? (_editorPrefs.ShowDifferences ? tex2ds[index].general : tex2ds[index].original) : null;
                 var image = new Image { image = texture2D };
                 _images.Add(image);
                 itemRoot.Add(image);
@@ -488,6 +525,16 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
+        private void ConsiderRescheduling()
+        {
+            if (tex2ds.Length == 0) return;
+            if (_editorPrefs.ShowDifferences)
+            {
+                _nextDifferential = 0;
+                StartScheduling();
+            }
+        }
+
         private void StartScheduling()
         {
             if (_isRunningDifferentials) return;
@@ -518,28 +565,50 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                 for (var iter = 0; iter < NumberOfIterationsPerDifferential && _nextDifferential < tex2ds.Length; iter++)
                 {
                     var tex2d = tex2ds[_differentialOrder[_nextDifferential]];
-                    var texture = tex2d.general;
+                    var original = tex2d.original;
+                    var general = tex2d.general;
                     var hotspot = tex2d.hotspot;
+                    Profiler.BeginSample("BlendshapeViewer.Compute");
+                    var compute = module.PerformCompute(_neutralTexture, original);
+                    Profiler.EndSample();
+                    
+                    BlendshapeViewerGenerator.ClearRenderTexture(renderTexture);
 
                     Profiler.BeginSample("BlendshapeViewer.Hotspot");
-                    if (tex2d.isAlreadyAnimatedTo100)
+                    if (_editorPrefs.AltAction == AltRole.AltToShowOriginal)
                     {
-                        module.Diff(_neutralTexture, texture, hotspot, renderTexture, HotspotAmount);
+                        if (tex2d.isAlreadyAnimatedTo100)
+                        {
+                            module.Diff(original, _neutralTexture, hotspot, renderTexture, 0f, compute);
+                        }
+                        else
+                        {
+                            module.Diff(_neutralTexture, original, hotspot, renderTexture, 0f, compute);
+                        }
                     }
-                    else
+                    else if (_editorPrefs.AltAction == AltRole.AltToShowHotspots || _editorPrefs.AltAction == AltRole.ShowHotspotsByDefault)
                     {
-                        module.Diff(texture, _neutralTexture, hotspot, renderTexture, HotspotAmount);
+                        if (tex2d.isAlreadyAnimatedTo100)
+                        {
+                            module.Diff(_neutralTexture, original, hotspot, renderTexture, HotspotAmount, compute);
+                        }
+                        else
+                        {
+                            module.Diff(original, _neutralTexture, hotspot, renderTexture, HotspotAmount, compute);
+                        }
                     }
                     Profiler.EndSample();
+                    
+                    BlendshapeViewerGenerator.ClearRenderTexture(renderTexture);
 
                     Profiler.BeginSample("BlendshapeViewer.InDiff");
                     if (tex2d.isAlreadyAnimatedTo100)
                     {
-                        module.Diff(_neutralTexture, texture, texture, renderTexture, 0f);
+                        module.Diff(_neutralTexture, original, general, renderTexture, 0f, compute);
                     }
                     else
                     {
-                        module.Diff(texture, _neutralTexture, texture, renderTexture, 0f);
+                        module.Diff(original, _neutralTexture, general, renderTexture, 0f, compute);
                     }
 
                     Profiler.EndSample();
@@ -614,6 +683,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         [Serializable]
         public class BlendshapeViewerDoubletex
         {
+            public Texture2D original;
             public Texture2D general;
             public Texture2D hotspot;
             public bool isAlreadyAnimatedTo100;
@@ -629,6 +699,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                 {
                     foreach (var tex2d in tex2ds)
                     {
+                        DestroyImmediate(tex2d.original);
                         DestroyImmediate(tex2d.general);
                         DestroyImmediate(tex2d.hotspot);
                     }
@@ -687,12 +758,14 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                         var currentWeight = skinnedMesh.GetBlendShapeWeight(i);
                         var isAlreadyAnimatedTo100 = Math.Abs(currentWeight - 100f) < 0.001f;
 
-                        var texture = NewTexture();
-                        var hotspot = NewTexture();
+                        var original = NewTexture();
                         Profiler.BeginSample("BlendshapeViewer.InRender");
-                        module.Render(blendshapeToRender, texture, renderTexture);
+                        module.Render(blendshapeToRender, original, renderTexture);
                         Profiler.EndSample();
-                        return new BlendshapeViewerDoubletex { general = texture, hotspot = hotspot, isAlreadyAnimatedTo100 = isAlreadyAnimatedTo100 };
+                        
+                        var general = Instantiate(original);
+                        var hotspot = Instantiate(original);
+                        return new BlendshapeViewerDoubletex { original = original, general = general, hotspot = hotspot, isAlreadyAnimatedTo100 = isAlreadyAnimatedTo100 };
                     })
                     .ToArray();
                 
