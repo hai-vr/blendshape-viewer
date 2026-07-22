@@ -526,7 +526,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             try
             {
                 var x = NewTexture();
-                var renderTexture = RenderTexture.GetTemporary(x.width, x.height, 24);
+                var renderTexture = RenderTexture.GetTemporary(x.width, x.height, 24, RenderTextureFormat.Default, RenderTextureReadWrite.Default, 8);
                 renderTexture.wrapMode = TextureWrapMode.Clamp;
                 
                 module.Begin();

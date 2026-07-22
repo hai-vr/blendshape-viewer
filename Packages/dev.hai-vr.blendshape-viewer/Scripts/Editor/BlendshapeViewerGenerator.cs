@@ -32,6 +32,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             _camera.nearClipPlane = sceneCamera.nearClipPlane;
             _camera.farClipPlane = sceneCamera.farClipPlane;
             _camera.orthographicSize = sceneCamera.orthographicSize;
+            _camera.allowMSAA = true;
 
             if (_useComputeShader)
             {
