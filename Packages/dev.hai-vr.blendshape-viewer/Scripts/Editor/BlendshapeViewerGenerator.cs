@@ -4,23 +4,54 @@ using UnityEngine.Profiling;
 
 namespace Hai.BlendshapeViewer.Scripts.Editor
 {
-    internal class BlendshapeViewerGenerator
+    internal class BlendshapeViewerDiff
     {
         private static readonly int ShaderHotspots = Shader.PropertyToID("_Hotspots");
         private static readonly int ShaderNeutralTex = Shader.PropertyToID("_NeutralTex");
         private static readonly int ShaderRect = Shader.PropertyToID("_Rect");
-        
-        private Material _material;
         private bool _useComputeShader;
-        private Camera _camera;
+        private Material _material;
         private BlendshapeViewerDiffCompute _diffCompute;
 
         public void Begin()
         {
             _useComputeShader = SystemInfo.supportsComputeShaders;
-
             _material = new Material(_useComputeShader ? Shader.Find("Hai/BlendshapeViewerRectOnly") : Shader.Find("Hai/BlendshapeViewer"));
-            
+
+            if (_useComputeShader)
+            {
+                _diffCompute = new BlendshapeViewerDiffCompute();
+            }
+        }
+
+        public void Diff(Texture2D source, Texture2D neutralTexture, Texture2D newTexture, RenderTexture renderTexture, float showHotspots)
+        {
+            _material.SetFloat(ShaderHotspots, showHotspots);
+            _material.SetTexture(ShaderNeutralTex, neutralTexture);
+            if (_useComputeShader)
+            {
+                _material.SetVector(ShaderRect, _diffCompute.Compute(source, neutralTexture));
+            }
+            Graphics.Blit(source, renderTexture, _material);
+            BlendshapeViewerGenerator.RenderTextureTo(renderTexture, newTexture);
+        }
+
+        public void Terminate()
+        {
+            Object.DestroyImmediate(_material);
+            if (_useComputeShader)
+            {
+                _diffCompute.Terminate();
+            }
+        }
+    }
+    
+    internal class BlendshapeViewerGenerator
+    {
+        private Camera _camera;
+
+        public void Begin()
+        {
             _camera = new GameObject().AddComponent<Camera>();
 
             var sceneCamera = SceneView.lastActiveSceneView.camera;
@@ -33,21 +64,11 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             _camera.farClipPlane = sceneCamera.farClipPlane;
             _camera.orthographicSize = sceneCamera.orthographicSize;
             _camera.allowMSAA = true;
-
-            if (_useComputeShader)
-            {
-                _diffCompute = new BlendshapeViewerDiffCompute();
-            }
         }
 
         public void Terminate()
         {
-            Object.DestroyImmediate(_material);
             Object.DestroyImmediate(_camera.gameObject);
-            if (_useComputeShader)
-            {
-                _diffCompute.Terminate();
-            }
         }
 
         public void Render(BlendshapeViewerEditorWindow.BlendshapeState blendshapeToRender, Texture2D element, RenderTexture rt)
@@ -98,24 +119,12 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
-        private static void RenderTextureTo(RenderTexture renderTexture, Texture2D texture2D)
+        internal static void RenderTextureTo(RenderTexture renderTexture, Texture2D texture2D)
         {
             RenderTexture.active = renderTexture;
             texture2D.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
             texture2D.Apply();
             RenderTexture.active = null;
-        }
-
-        public void Diff(Texture2D source, Texture2D neutralTexture, Texture2D newTexture, RenderTexture renderTexture, float showHotspots)
-        {
-            _material.SetFloat(ShaderHotspots, showHotspots);
-            _material.SetTexture(ShaderNeutralTex, neutralTexture);
-            if (_useComputeShader)
-            {
-                _material.SetVector(ShaderRect, _diffCompute.Compute(source, neutralTexture));
-            }
-            Graphics.Blit(source, renderTexture, _material);
-            RenderTextureTo(renderTexture, newTexture);
         }
     }
 }

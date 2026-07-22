@@ -14,7 +14,8 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private const int MinWidth = 150;
         private const int MaxSearchQueryLength = 100;
         private const float HotspotAmount = 0.8f;
-        
+        private const int NumberOfIterationsPerDifferential = 50;
+
         private static class Phrases
         {
             public const string documentation_url = nameof(documentation_url);
@@ -67,6 +68,9 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private readonly List<Image> _images = new();
         private bool _isAlt;
         private bool _altToShowHotspotsChanged;
+        private Texture2D _neutralTexture;
+        private int _nextDifferential;
+        private bool _isRunningDifferentials;
 
         private class BlendshapeElement
         {
@@ -442,6 +446,15 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
+        private void OnDisable()
+        {
+            if (_isRunningDifferentials)
+            {
+                _isRunningDifferentials = false;
+                EditorApplication.update -= RunDifferentials;
+            }
+        }
+
         private void Update()
         {
             UpdateUpdateButtonEnabledState();
@@ -459,13 +472,79 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         {
             if (AnimationMode.InAnimationMode()) return;
 
+            _nextDifferential = -1;
             Generate();
+            if (_editorPrefs.ShowDifferences)
+            {
+                _nextDifferential = 0;
+                StartScheduling();
+            }
             SaveGenerationParams();
             
             if (_root != null)
             {
                 ReconstructGrid();
             }
+        }
+
+        private void StartScheduling()
+        {
+            if (_isRunningDifferentials) return;
+            _isRunningDifferentials = true;
+            EditorApplication.update += RunDifferentials;
+        }
+
+        private void RunDifferentials()
+        {
+            var module = new BlendshapeViewerDiff();
+            var renderTexture = ObtainTemporaryRenderTexture(_neutralTexture);
+            module.Begin();
+            try
+            {
+                for (var iter = 0; iter < NumberOfIterationsPerDifferential && _nextDifferential < tex2ds.Length; iter++)
+                {
+                    var tex2d = tex2ds[_nextDifferential];
+                    var texture = tex2d.general;
+                    var hotspot = tex2d.hotspot;
+
+                    Profiler.BeginSample("BlendshapeViewer.Hotspot");
+                    if (tex2d.isAlreadyAnimatedTo100)
+                    {
+                        module.Diff(_neutralTexture, texture, hotspot, renderTexture, HotspotAmount);
+                    }
+                    else
+                    {
+                        module.Diff(texture, _neutralTexture, hotspot, renderTexture, HotspotAmount);
+                    }
+                    Profiler.EndSample();
+
+                    Profiler.BeginSample("BlendshapeViewer.InDiff");
+                    if (tex2d.isAlreadyAnimatedTo100)
+                    {
+                        module.Diff(_neutralTexture, texture, texture, renderTexture, 0f);
+                    }
+                    else
+                    {
+                        module.Diff(texture, _neutralTexture, texture, renderTexture, 0f);
+                    }
+
+                    Profiler.EndSample();
+
+                    _nextDifferential++;
+                }
+            }
+            finally
+            {
+                module.Terminate();
+                RenderTexture.ReleaseTemporary(renderTexture);
+            }
+
+            if (_nextDifferential >= tex2ds.Length)
+            {
+                _isRunningDifferentials = false;
+                EditorApplication.update -= RunDifferentials;
+            }
+            Repaint();
         }
 
         private void SaveGenerationParams()
@@ -518,6 +597,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         {
             public Texture2D general;
             public Texture2D hotspot;
+            public bool isAlreadyAnimatedTo100;
         }
 
         private void Generate()
@@ -525,22 +605,31 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var module = new BlendshapeViewerGenerator();
             try
             {
+                if (_neutralTexture != null) DestroyImmediate(_neutralTexture);
+                if (tex2ds != null)
+                {
+                    foreach (var tex2d in tex2ds)
+                    {
+                        DestroyImmediate(tex2d.general);
+                        DestroyImmediate(tex2d.hotspot);
+                    }
+                }
+                
                 var x = NewTexture();
-                var renderTexture = RenderTexture.GetTemporary(x.width, x.height, 24, RenderTextureFormat.Default, RenderTextureReadWrite.Default, 8);
-                renderTexture.wrapMode = TextureWrapMode.Clamp;
+                var renderTexture = ObtainTemporaryRenderTexture(x);
                 
                 module.Begin();
-                Texture2D neutralTexture = null;
+                
                 if (_editorPrefs.ShowDifferences)
                 {
-                    neutralTexture = NewTexture();
+                    _neutralTexture = NewTexture();
                     module.Render(new BlendshapeState
                     {
                         skinnedMesh = skinnedMesh,
                         index = -1,
                         initialWeight = 0,
                         desiredWeightForCapture = 0
-                    }, neutralTexture, renderTexture);
+                    }, _neutralTexture, renderTexture);
                 }
 
                 var generatedStates = new [] {skinnedMesh}
@@ -570,11 +659,10 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                             .ToArray();
                     })
                     .ToArray();
-                
+
                 tex2ds = generatedStates
                     .Select((blendshapeToRender, i) =>
                     {
-                        Profiler.BeginSample("BlendshapeViewer.InTexture");
                         if (i % 10 == 0) EditorUtility.DisplayProgressBar(localize.Text(Phrases.rendering), localize.Format(Phrases.rendering_progress, i, generatedStates.Length), 1f * i / generatedStates.Length);
 
                         var currentWeight = skinnedMesh.GetBlendShapeWeight(i);
@@ -585,39 +673,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                         Profiler.BeginSample("BlendshapeViewer.InRender");
                         module.Render(blendshapeToRender, texture, renderTexture);
                         Profiler.EndSample();
-                        if (i == 0)
-                        {
-                            Profiler.BeginSample("BlendshapeViewer.InRenderSecondary");
-                            // Workaround a weird bug where the first blendshape is always incorrectly rendered
-                            module.Render(blendshapeToRender, texture, renderTexture);
-                            Profiler.EndSample();
-                        }
-                        if (_editorPrefs.ShowDifferences)
-                        {
-                            Profiler.BeginSample("BlendshapeViewer.Hotspot");
-                            if (isAlreadyAnimatedTo100)
-                            {
-                                module.Diff(neutralTexture, texture, hotspot, renderTexture, HotspotAmount);
-                            }
-                            else
-                            {
-                                module.Diff(texture, neutralTexture, hotspot, renderTexture, HotspotAmount);
-                            }
-                            Profiler.EndSample();
-                            
-                            Profiler.BeginSample("BlendshapeViewer.InDiff");
-                            if (isAlreadyAnimatedTo100)
-                            {
-                                module.Diff(neutralTexture, texture, texture, renderTexture, 0f);
-                            }
-                            else
-                            {
-                                module.Diff(texture, neutralTexture, texture, renderTexture, 0f);
-                            }
-                            Profiler.EndSample();
-                        }
-                        Profiler.EndSample();
-                        return new BlendshapeViewerDoubletex { general = texture, hotspot = hotspot };
+                        return new BlendshapeViewerDoubletex { general = texture, hotspot = hotspot, isAlreadyAnimatedTo100 = isAlreadyAnimatedTo100 };
                     })
                     .ToArray();
                 
@@ -630,20 +686,11 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
-        private static AnimationClip EmptyClip()
+        private static RenderTexture ObtainTemporaryRenderTexture(Texture2D x)
         {
-            var emptyClip = new AnimationClip();
-            AnimationUtility.SetEditorCurve(
-                emptyClip,
-                new EditorCurveBinding
-                {
-                    path = "_ignored",
-                    type = typeof(GameObject),
-                    propertyName = "m_Active"
-                },
-                AnimationCurve.Constant(0, 1 / 60f, 100f)
-            );
-            return emptyClip;
+            var result = RenderTexture.GetTemporary(x.width, x.height, 24, RenderTextureFormat.Default, RenderTextureReadWrite.Default, 8);
+            result.wrapMode = TextureWrapMode.Clamp;
+            return result;
         }
 
         private Texture2D NewTexture()
