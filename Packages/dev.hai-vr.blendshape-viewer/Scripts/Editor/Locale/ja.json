@@ -16,7 +16,8 @@
       "search": "検索",
       "copy_to_clipboard": "{0}をクリップボードにコピー",
       "rendering": "レンダリング中",
-      "rendering_progress": "レンダリング中 ({0} / {1})"
+      "rendering_progress": "レンダリング中 ({0} / {1})",
+      "only_show_non_zero": "非ゼロのみ表示"
     },
     "enums": {
       "Hai.BlendshapeViewer.Scripts.Editor.AltRole": {

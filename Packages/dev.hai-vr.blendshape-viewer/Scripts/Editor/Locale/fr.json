@@ -16,7 +16,8 @@
       "search": "Rechercher",
       "copy_to_clipboard": "Copier {0} dans le presse-papiers",
       "rendering": "Rendu en cours",
-      "rendering_progress": "Rendu en cours ({0} / {1})"
+      "rendering_progress": "Rendu en cours ({0} / {1})",
+      "only_show_non_zero": "Afficher uniquement les valeurs non nulles"
     },
     "enums": {
       "Hai.BlendshapeViewer.Scripts.Editor.AltRole": {

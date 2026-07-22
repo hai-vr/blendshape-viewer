@@ -28,6 +28,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             public const string show_differences = nameof(show_differences);
             public const string thumbnail_size = nameof(thumbnail_size);
             public const string update = nameof(update);
+            public const string only_show_non_zero = nameof(only_show_non_zero);
         }
 
         public SkinnedMeshRenderer skinnedMesh;
@@ -47,6 +48,8 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         public BlendshapeViewerDoubletex[] tex2ds = Array.Empty<BlendshapeViewerDoubletex>();
 
         private string _search = "";
+        private bool _onlyShowNonZero;
+        private List<int> _nonZeroIndices = new();
         
         private SkinnedMeshRenderer _generatedFor;
         private int _generatedSize;
@@ -63,6 +66,8 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private VisualElement _container;
         private VisualElement _grid;
         private Button _updateButton;
+        private Button _onlyShowNonZeroButton;
+        private TextField _searchField;
         private readonly List<BlendshapeElement> _elements = new();
         private readonly List<Image> _images = new();
         private bool _isAlt;
@@ -257,20 +262,55 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
 
             var controlsRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 5, marginBottom = 5 } };
             
-            controlsRow.Add(new Label(localize.Text(Phrases.search)) { style = { width = 50 } });
-            var searchField = new TextField { style = { flexGrow = 1 } };
-            searchField.value = _search;
-            searchField.RegisterValueChangedCallback(evt =>
+            controlsRow.Add(new Label(localize.Text(Phrases.search)));
+            _searchField = new TextField { style = { flexGrow = 1, marginLeft = 5 } };
+            _searchField.value = _search;
+            _searchField.RegisterValueChangedCallback(evt =>
             {
                 _search = evt.newValue;
                 if (_search.Length > MaxSearchQueryLength)
                 {
                     _search = _search.Substring(0, MaxSearchQueryLength);
-                    searchField.SetValueWithoutNotify(_search);
+                    _searchField.SetValueWithoutNotify(_search);
                 }
+
+                if (_onlyShowNonZero && _search.Length > 0)
+                {
+                    _onlyShowNonZero = false;
+                    UpdateOnlyShowNonZeroButtonStyle();
+                }
+                
                 UpdateFiltering();
             });
-            controlsRow.Add(searchField);
+            controlsRow.Add(_searchField);
+
+            _onlyShowNonZeroButton = new Button(() =>
+            {
+                _onlyShowNonZero = !_onlyShowNonZero;
+                if (_onlyShowNonZero)
+                {
+                    _search = "";
+                    _searchField.SetValueWithoutNotify("");
+                    
+                    _nonZeroIndices.Clear();
+                    if (skinnedMesh != null && skinnedMesh.sharedMesh != null)
+                    {
+                        var mesh = skinnedMesh.sharedMesh;
+                        for (var i = 0; i < mesh.blendShapeCount; i++)
+                        {
+                            if (skinnedMesh.GetBlendShapeWeight(i) != 0)
+                            {
+                                _nonZeroIndices.Add(i);
+                            }
+                        }
+                    }
+                }
+                UpdateOnlyShowNonZeroButtonStyle();
+                UpdateFiltering();
+            }) { text = localize.Text(Phrases.only_show_non_zero), style = { marginLeft = 5 } };
+            UpdateOnlyShowNonZeroButtonStyle();
+            controlsRow.Add(_onlyShowNonZeroButton);
+            
             topSettings.Add(controlsRow);
 
             _container = new ScrollView(ScrollViewMode.Vertical);
@@ -309,12 +349,26 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
         }
 
+        private void UpdateOnlyShowNonZeroButtonStyle()
+        {
+            if (_onlyShowNonZeroButton == null) return;
+            _onlyShowNonZeroButton.style.backgroundColor = _onlyShowNonZero ? new Color(0.25f, 0.39f, 0.18f) : new StyleColor(StyleKeyword.Null);
+            _onlyShowNonZeroButton.style.color = _onlyShowNonZero ? new Color(0.83f, 0.96f, 0.76f) : StyleKeyword.Null;
+        }
+
         private void UpdateFiltering()
         {
             var hasSearch = !string.IsNullOrEmpty(_search);
             foreach (var element in _elements)
             {
-                element.SetVisible(!hasSearch || IsMatch(element.Name));
+                if (_onlyShowNonZero)
+                {
+                    element.SetVisible(_nonZeroIndices.Contains(element.Index));
+                }
+                else
+                {
+                    element.SetVisible(!hasSearch || IsMatch(element.Name));
+                }
             }
         }
 
@@ -544,7 +598,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var mesh = skinnedMesh.sharedMesh;
             for (var i = mesh.blendShapeCount - 1; i >= 0; i--)
             {
-                if (IsMatch(mesh.GetBlendShapeName(i)))
+                if (!string.IsNullOrEmpty(_search) && IsMatch(mesh.GetBlendShapeName(i)) || (_onlyShowNonZero && _nonZeroIndices.Contains(i)))
                 {
                     _differentialOrder.Remove(i);
                     _differentialOrder.Insert(0, i);

@@ -16,7 +16,8 @@
       "search": "搜索",
       "copy_to_clipboard": "复制 {0} 到剪贴板",
       "rendering": "正在渲染",
-      "rendering_progress": "正在渲染 ({0} / {1})"
+      "rendering_progress": "正在渲染 ({0} / {1})",
+      "only_show_non_zero": "仅显示非零值"
     },
     "enums": {
       "Hai.BlendshapeViewer.Scripts.Editor.AltRole": {

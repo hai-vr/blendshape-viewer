@@ -16,7 +16,8 @@
       "search": "Search",
       "copy_to_clipboard": "Copy {0} to Clipboard",
       "rendering": "Rendering",
-      "rendering_progress": "Rendering ({0} / {1})"
+      "rendering_progress": "Rendering ({0} / {1})",
+      "only_show_non_zero": "Only show non-zero"
     },
     "enums": {
       "Hai.BlendshapeViewer.Scripts.Editor.AltRole": {
