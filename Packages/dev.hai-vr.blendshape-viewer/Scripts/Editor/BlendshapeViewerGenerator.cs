@@ -116,7 +116,6 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             }
             Graphics.Blit(source, renderTexture, _material);
             RenderTextureTo(renderTexture, newTexture);
-            RenderTexture.ReleaseTemporary(renderTexture);
         }
     }
 }
