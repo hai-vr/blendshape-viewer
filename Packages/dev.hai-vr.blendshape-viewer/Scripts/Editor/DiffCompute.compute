@@ -18,7 +18,7 @@ RWStructuredBuffer<int> ResultBuffer; // [minX, minY, maxX, maxY]
 void DiffCompute (uint3 id : SV_DispatchThreadID)
 {
     float3 diff = InputA[id.xy].xyz - InputB[id.xy].xyz;
-    if (dot(diff, diff) > 0.01)
+    if (dot(diff, diff) > 0.1) // Increased from 0.01 to 0.1 due to antialiasing
     {
         // handle first occurrence, this branch needs to be here because stupid compiler
         if (ResultBuffer[0] == 0)
