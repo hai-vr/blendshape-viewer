@@ -147,7 +147,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             var topSettings = new VisualElement { style = { flexDirection = FlexDirection.Column, flexShrink = 0 } };
             _root.Add(topSettings);
 
-            var meshRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
+            var meshRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexShrink = 0 } };
             topSettings.Add(meshRow);
 
             var meshField = new PropertyField(serializedObject.FindProperty(nameof(skinnedMesh)), localize.Text(Phrases.mesh))
@@ -204,7 +204,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             helpButton.AddToClassList("unity-button--quiet");
             meshRow.Add(helpButton);
 
-            var togglesRow = new VisualElement { style = { flexDirection = FlexDirection.Row } };
+            var togglesRow = new VisualElement { style = { flexDirection = FlexDirection.Row, flexShrink = 0 } };
             var showDifferencesToggle = new Toggle(localize.Text(Phrases.show_differences)) { value = _editorPrefs.ShowDifferences, style = { flexGrow = 1, flexBasis = 0 } };
             showDifferencesToggle.RegisterValueChangedCallback(evt => {
                 _editorPrefs.ShowDifferences = evt.newValue;
@@ -249,21 +249,21 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             
             topSettings.Add(togglesRow);
 
-            var sizeSlider = new SliderInt(localize.Text(Phrases.thumbnail_size), 100, 300) { value = _editorPrefs.ThumbnailSize };
+            var sizeSlider = new SliderInt(localize.Text(Phrases.thumbnail_size), 100, 300) { value = _editorPrefs.ThumbnailSize, style = { flexShrink = 0 } };
             sizeSlider.RegisterValueChangedCallback(evt => {
                 _editorPrefs.ThumbnailSize = evt.newValue;
                 UpdateLayout();
             });
             topSettings.Add(sizeSlider);
 
-            _updateButton = new Button(() => TryExecuteUpdate()) { text = localize.Text(Phrases.update) };
+            _updateButton = new Button(() => TryExecuteUpdate()) { text = localize.Text(Phrases.update), style = { flexShrink = 0 } };
             _updateButton.SetEnabled(skinnedMesh != null && !AnimationMode.InAnimationMode());
             topSettings.Add(_updateButton);
 
-            var controlsRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 5, marginBottom = 5 } };
+            var controlsRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, marginTop = 5, marginBottom = 5, flexShrink = 0 } };
             
             controlsRow.Add(new Label(localize.Text(Phrases.search)));
-            _searchField = new TextField { style = { flexGrow = 1, marginLeft = 5 } };
+            _searchField = new TextField { style = { flexGrow = 1, marginLeft = 5, flexBasis = 0, minWidth = 50 } };
             _searchField.value = _search;
             _searchField.RegisterValueChangedCallback(evt =>
             {
@@ -307,7 +307,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
                 }
                 UpdateOnlyShowNonZeroButtonStyle();
                 UpdateFiltering();
-            }) { text = localize.Text(Phrases.only_show_non_zero), style = { marginLeft = 5 } };
+            }) { text = localize.Text(Phrases.only_show_non_zero), style = { marginLeft = 5, flexShrink = 0 } };
             UpdateOnlyShowNonZeroButtonStyle();
             controlsRow.Add(_onlyShowNonZeroButton);
             
