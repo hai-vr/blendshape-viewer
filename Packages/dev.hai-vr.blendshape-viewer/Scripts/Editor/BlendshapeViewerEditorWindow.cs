@@ -71,6 +71,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         private Texture2D _neutralTexture;
         private int _nextDifferential;
         private bool _isRunningDifferentials;
+        private List<int> _differentialOrder;
 
         private class BlendshapeElement
         {
@@ -491,6 +492,19 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
         {
             if (_isRunningDifferentials) return;
             _isRunningDifferentials = true;
+
+            _differentialOrder = Enumerable.Range(0, tex2ds.Length).ToList();
+            var mesh = skinnedMesh.sharedMesh;
+            for (var i = mesh.blendShapeCount - 1; i >= 0; i--)
+            {
+                if (IsMatch(mesh.GetBlendShapeName(i)))
+                {
+                    _differentialOrder.Remove(i);
+                    _differentialOrder.Insert(0, i);
+                }
+            }
+            _updateButton.text = localize.Format(Phrases.rendering_progress, 0, _differentialOrder.Count);
+            
             EditorApplication.update += RunDifferentials;
         }
 
@@ -503,7 +517,7 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             {
                 for (var iter = 0; iter < NumberOfIterationsPerDifferential && _nextDifferential < tex2ds.Length; iter++)
                 {
-                    var tex2d = tex2ds[_nextDifferential];
+                    var tex2d = tex2ds[_differentialOrder[_nextDifferential]];
                     var texture = tex2d.general;
                     var hotspot = tex2d.hotspot;
 
@@ -543,6 +557,11 @@ namespace Hai.BlendshapeViewer.Scripts.Editor
             {
                 _isRunningDifferentials = false;
                 EditorApplication.update -= RunDifferentials;
+                _updateButton.text = localize.Format(Phrases.update);
+            }
+            else
+            {
+                _updateButton.text = localize.Format(Phrases.rendering_progress, _nextDifferential, _differentialOrder.Count);
             }
             Repaint();
         }
