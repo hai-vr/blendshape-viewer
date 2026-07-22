@@ -58,7 +58,7 @@
                 float height = _MainTex_TexelSize.w;
 
                 float4 difference = _Rect;
-                difference = difference + float4(-1, -1, 1, 1) * 2; // Margin
+                difference = difference + float4(-1, -1, 1, 1) * 5; // Margin
 
                 fixed4 col = tex2D(_MainTex, i.uv);
                 if (_Rect.x == 0 && _Rect.y == 0 && _Rect.z == 0 && _Rect.w == 0) {

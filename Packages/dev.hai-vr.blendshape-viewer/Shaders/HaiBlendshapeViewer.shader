@@ -79,7 +79,7 @@
                 float height = _MainTex_TexelSize.w;
 
                 float4 difference = i.diff;
-                difference = difference + float4(-1, -1, 1, 1) * 2; // Margin
+                difference = difference + float4(-1, -1, 1, 1) * 5; // Margin
                 
                 fixed4 col = tex2D(_MainTex, i.uv);
                 if (i.uv.x < difference.x / width || i.uv.x > difference.z / width
