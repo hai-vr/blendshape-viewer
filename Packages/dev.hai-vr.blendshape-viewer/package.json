@@ -1,7 +1,7 @@
 {
   "name": "dev.hai-vr.blendshape-viewer",
   "displayName": "Haï ~ Blendshape Viewer",
-  "version": "3.0.0-beta.4",
+  "version": "3.0.0",
   "unity": "2022.3",
   "description": "Blendshape Viewer lets you visualize which area of a model is affected by a blendshape. https://docs.hai-vr.dev/docs/products/blendshape-viewer",
   "vrchatVersion" : "2022.1.1",
